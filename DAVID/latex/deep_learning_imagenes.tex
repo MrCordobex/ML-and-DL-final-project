@@ -20,10 +20,13 @@
 \usepackage{fancyhdr}
 \usepackage{listings}
 \usepackage{tikz}
-\usetikzlibrary{shapes,arrows,positioning,calc}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{shapes,arrows,positioning,calc,matrix}
 \usepackage{algorithm}
 \usepackage{algorithmic}
 \usepackage{tcolorbox}
+\usepackage{cancel}
 
 \geometry{margin=2.5cm}
 
@@ -80,6 +83,13 @@
     title=#1
 }
 
+\newtcolorbox{mathbox}[1][]{
+    colback=yellow!5!white,
+    colframe=orange!80!black,
+    fonttitle=\bfseries,
+    title=#1
+}
+
 % Encabezado y pie de página
 \pagestyle{fancy}
 \fancyhf{}
@@ -103,7 +113,8 @@
 
     \rule{\textwidth}{1.5pt}\\[0.5cm]
     {\Huge \textbf{Clasificación de Lesiones Cutáneas mediante Deep Learning}}\\[0.3cm]
-    {\Large Bloque A: Modelos Unimodales con Imágenes}\\[0.5cm]
+    {\Large Bloque A: Modelos Unimodales con Imágenes}\\[0.3cm]
+    {\large \textit{Apuntes Teórico-Prácticos}}\\[0.5cm]
     \rule{\textwidth}{1.5pt}\\[2cm]
 
     {\large \textbf{Proyecto Final Integrado}}\\[0.3cm]
@@ -126,11 +137,16 @@
 \newpage
 
 % ============================================
-% 1. INTRODUCCIÓN
+% PARTE I: FUNDAMENTOS TEÓRICOS
 % ============================================
-\section{Introducción}
+\part{Fundamentos Teóricos}
 
-\subsection{Contexto del Problema}
+% ============================================
+% 1. INTRODUCCIÓN AL PROBLEMA
+% ============================================
+\section{Introducción al Problema}
+
+\subsection{El Desafío Médico: Cáncer de Piel}
 
 El cáncer de piel es uno de los tipos de cáncer más comunes a nivel mundial. Según la Organización Mundial de la Salud, cada año se diagnostican más de 3 millones de casos de cáncer de piel no melanoma y aproximadamente 132.000 casos de melanoma maligno. La detección temprana es \textbf{crítica}: un melanoma detectado en etapa temprana tiene una tasa de supervivencia superior al 95\%, mientras que en etapas avanzadas esta tasa cae drásticamente por debajo del 20\%.
 
@@ -138,795 +154,1806 @@ El cáncer de piel es uno de los tipos de cáncer más comunes a nivel mundial. 
 El melanoma (MEL) representa solo el 1\% de los cánceres de piel, pero es responsable de la gran mayoría de muertes por cáncer de piel. Por esta razón, en nuestro trabajo \textbf{priorizamos la detección correcta de melanomas} sobre otras métricas generales.
 \end{warningbox}
 
-La dermatoscopia es una técnica no invasiva que permite visualizar estructuras de la piel no visibles a simple vista. Sin embargo, la interpretación de estas imágenes requiere años de experiencia especializada, y existe una variabilidad significativa entre dermatólogos. Aquí es donde el \textit{Deep Learning} puede aportar valor: sistemas de apoyo al diagnóstico que ayuden a los profesionales médicos.
+\subsection{¿Qué es la Dermatoscopia?}
 
-\subsection{Dataset ISIC: Características}
+La \textbf{dermatoscopia} (también llamada dermoscopia o microscopía de epiluminiscencia) es una técnica no invasiva que permite visualizar estructuras de la piel no visibles a simple vista. Utiliza un instrumento llamado \textit{dermatoscopio} que proporciona:
 
-El dataset utilizado proviene de la \textit{International Skin Imaging Collaboration} (ISIC), específicamente adaptado para clasificación multiclase. Nuestro subconjunto contiene \textbf{6 tipos de lesiones cutáneas}:
+\begin{itemize}
+    \item \textbf{Iluminación}: Luz polarizada o no polarizada
+    \item \textbf{Magnificación}: Típicamente 10x
+    \item \textbf{Eliminación de reflejos}: Mediante aceite de inmersión o polarización cruzada
+\end{itemize}
+
+Esto permite observar patrones como:
+\begin{itemize}
+    \item Redes de pigmento
+    \item Glóbulos y puntos
+    \item Velos azul-blanquecinos
+    \item Estructuras vasculares
+\end{itemize}
+
+\subsection{El Problema de Clasificación}
+
+Nuestro objetivo es construir un sistema que, dada una imagen dermatoscópica, prediga el tipo de lesión entre 6 categorías:
 
 \begin{table}[H]
 \centering
 \caption{Clases del dataset y su significado clínico}
 \label{tab:clases}
-\begin{tabular}{@{}llp{7cm}@{}}
+\begin{tabular}{@{}llp{6.5cm}@{}}
 \toprule
-\textbf{Código} & \textbf{Nombre Completo} & \textbf{Descripción} \\
+\textbf{Código} & \textbf{Nombre Completo} & \textbf{Descripción Clínica} \\
 \midrule
-ACK & Queratosis Actínica & Lesión precancerosa causada por exposición solar \\
-BCC & Carcinoma Basocelular & Cáncer de piel común, raramente metastásico \\
-\rowcolor{red!10} MEL & \textbf{Melanoma} & \textbf{El más peligroso. Prioridad máxima de detección} \\
-NEV & Nevus (Lunar) & Lesión benigna común \\
-SCC & Carcinoma Espinocelular & Cáncer de piel con potencial metastásico \\
-SEK & Queratosis Seborreica & Lesión benigna común en adultos mayores \\
+ACK & Queratosis Actínica & Lesión precancerosa por daño solar acumulado. Puede evolucionar a SCC. \\
+BCC & Carcinoma Basocelular & Cáncer de piel más común. Crecimiento lento, raramente metastásico. \\
+\rowcolor{red!10} MEL & \textbf{Melanoma} & \textbf{El más peligroso. Alta capacidad de metástasis. Prioridad máxima.} \\
+NEV & Nevus (Lunar) & Lesión benigna muy común. Acumulación de melanocitos. \\
+SCC & Carcinoma Espinocelular & Segundo cáncer de piel más común. Puede hacer metástasis. \\
+SEK & Queratosis Seborreica & Lesión benigna común en adultos mayores. ``Verruga senil''. \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\subsection{Distribución del Dataset}
+Matemáticamente, buscamos una función $f: \mathbb{R}^{H \times W \times 3} \rightarrow \{1, 2, ..., 6\}$ que mapee una imagen RGB a una de las 6 clases.
+
+\subsection{Dataset ISIC}
+
+\subsubsection{Origen y Características}
+
+El dataset proviene de la \textit{International Skin Imaging Collaboration} (ISIC), un repositorio público de imágenes dermatoscópicas con diagnósticos confirmados histológicamente.
 
 \begin{table}[H]
 \centering
-\caption{División del dataset por conjuntos}
+\caption{Distribución del dataset}
 \label{tab:split}
-\begin{tabular}{@{}lccc@{}}
+\begin{tabular}{@{}lcccp{5cm}@{}}
 \toprule
 \textbf{Conjunto} & \textbf{Imágenes} & \textbf{Proporción} & \textbf{Uso} \\
 \midrule
-Entrenamiento (Train) & 500 & 70\% & Aprendizaje de los modelos \\
-Validación (Val) & 130 & 15\% & Ajuste de hiperparámetros \\
+Train & 500 & 70\% & Aprendizaje de parámetros \\
+Validation & 130 & 15\% & Ajuste de hiperparámetros \\
 Test & 161 & 15\% & Evaluación final (nunca visto) \\
+\midrule
+\textbf{Total} & \textbf{791} & 100\% & \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\begin{warningbox}[Problema Crítico: Desbalanceo de Clases]
-La clase MEL (Melanoma) tiene significativamente \textbf{menos muestras} que las demás clases ($\approx$35 imágenes de entrenamiento). Este desbalanceo es un desafío técnico importante que abordaremos con técnicas específicas.
+\subsubsection{El Problema del Desbalanceo}
+
+\begin{warningbox}[Desbalanceo de Clases - Problema Crítico]
+La clase MEL (Melanoma) tiene \textbf{significativamente menos muestras} que las demás:
+\begin{itemize}
+    \item MEL en train: $\approx$35 imágenes
+    \item Otras clases en train: $\approx$80-90 imágenes cada una
+\end{itemize}
+Esto crea un sesgo donde el modelo puede ``ignorar'' la clase minoritaria y aún así tener buen accuracy global.
 \end{warningbox}
 
-\subsection{Objetivos del Trabajo}
-
-Los objetivos específicos de este bloque son:
-
-\begin{enumerate}
-    \item \textbf{Establecer una línea base} con arquitecturas CNN preentrenadas
-    \item \textbf{Aplicar Transfer Learning} para compensar el tamaño limitado del dataset
-    \item \textbf{Implementar técnicas de regularización} para evitar overfitting
-    \item \textbf{Construir un ensemble} que combine múltiples arquitecturas
-    \item \textbf{Priorizar la detección de melanoma} en las decisiones de diseño
-\end{enumerate}
-
 % ============================================
-% 2. FUNDAMENTOS TEÓRICOS
+% 2. FUNDAMENTOS MATEMÁTICOS
 % ============================================
-\section{Fundamentos Teóricos}
+\section{Fundamentos Matemáticos de Redes Neuronales}
 
-Esta sección explica los conceptos fundamentales necesarios para entender las decisiones técnicas tomadas en el proyecto.
+\subsection{El Perceptrón: La Neurona Artificial}
 
-\subsection{Redes Neuronales Convolucionales (CNNs)}
+\subsubsection{Modelo Matemático}
 
-Las \textbf{Redes Neuronales Convolucionales} son arquitecturas de Deep Learning especialmente diseñadas para procesar datos con estructura de cuadrícula, como las imágenes.
-
-\subsubsection{¿Por qué Convoluciones para Imágenes?}
-
-Una imagen de 224×224 píxeles en color tiene $224 \times 224 \times 3 = 150.528$ valores de entrada. Si conectáramos cada píxel a cada neurona de una capa densa de 1000 neuronas, tendríamos más de 150 millones de parámetros solo en esa capa. Esto es:
-
-\begin{itemize}
-    \item \textbf{Computacionalmente prohibitivo}
-    \item \textbf{Propenso a overfitting} (demasiados parámetros para los datos disponibles)
-    \item \textbf{Incapaz de capturar patrones locales} como bordes o texturas
-\end{itemize}
-
-Las convoluciones resuelven estos problemas mediante dos principios fundamentales:
-
-\begin{conceptbox}[Principios de las Convoluciones]
-\begin{enumerate}
-    \item \textbf{Conectividad Local}: Cada neurona solo ``ve'' una pequeña región de la imagen (campo receptivo), no toda la imagen.
-    \item \textbf{Compartición de Pesos}: El mismo filtro (kernel) se aplica a toda la imagen, reduciendo drásticamente los parámetros.
-\end{enumerate}
-\end{conceptbox}
-
-\subsubsection{Operación de Convolución}
-
-Matemáticamente, la convolución 2D se define como:
+Una neurona artificial (perceptrón) es la unidad básica de una red neuronal. Matemáticamente:
 
 \begin{equation}
-(I * K)[i,j] = \sum_{m}\sum_{n} I[i+m, j+n] \cdot K[m,n]
+y = \sigma\left(\sum_{i=1}^{n} w_i x_i + b\right) = \sigma(\mathbf{w}^T \mathbf{x} + b)
 \end{equation}
 
-Donde $I$ es la imagen de entrada, $K$ es el kernel (filtro) y $*$ denota la operación de convolución. El kernel ``desliza'' sobre la imagen, multiplicando elemento a elemento y sumando los resultados.
+Donde:
+\begin{itemize}
+    \item $\mathbf{x} = [x_1, x_2, ..., x_n]^T$ es el vector de entradas
+    \item $\mathbf{w} = [w_1, w_2, ..., w_n]^T$ es el vector de pesos (parámetros aprendibles)
+    \item $b$ es el sesgo (bias)
+    \item $\sigma$ es la función de activación
+    \item $y$ es la salida
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance=1.5cm,
+    neuron/.style={circle, draw, minimum size=1cm, fill=blue!20},
+    input/.style={circle, draw, minimum size=0.8cm, fill=green!20},
+    arrow/.style={->, thick}
+]
+    % Inputs
+    \node[input] (x1) at (0, 2) {$x_1$};
+    \node[input] (x2) at (0, 0.5) {$x_2$};
+    \node[input] (x3) at (0, -1) {$x_3$};
+    \node at (0, -2) {$\vdots$};
+    \node[input] (xn) at (0, -3) {$x_n$};
+
+    % Neuron
+    \node[neuron] (neuron) at (4, -0.25) {$\Sigma$};
+
+    % Output
+    \node[neuron, fill=orange!30] (sigma) at (6.5, -0.25) {$\sigma$};
+    \node (output) at (8.5, -0.25) {$y$};
+
+    % Bias
+    \node[input, fill=yellow!30] (bias) at (4, -3) {$b$};
+
+    % Connections with weights
+    \draw[arrow] (x1) -- node[above, sloped] {$w_1$} (neuron);
+    \draw[arrow] (x2) -- node[above, sloped] {$w_2$} (neuron);
+    \draw[arrow] (x3) -- node[above, sloped] {$w_3$} (neuron);
+    \draw[arrow] (xn) -- node[above, sloped] {$w_n$} (neuron);
+    \draw[arrow] (bias) -- (neuron);
+    \draw[arrow] (neuron) -- (sigma);
+    \draw[arrow] (sigma) -- (output);
+
+\end{tikzpicture}
+\caption{Modelo de una neurona artificial. Las entradas se multiplican por pesos, se suman con el bias, y pasan por una función de activación.}
+\end{figure}
+
+\subsubsection{Funciones de Activación}
+
+Las funciones de activación introducen \textbf{no-linealidad} en la red. Sin ellas, una red profunda sería equivalente a una transformación lineal simple.
+
+\begin{mathbox}[Funciones de Activación Comunes]
+\textbf{Sigmoide:}
+\begin{equation}
+\sigma(x) = \frac{1}{1 + e^{-x}} \quad \text{Rango: } (0, 1)
+\end{equation}
+
+\textbf{Tanh (Tangente Hiperbólica):}
+\begin{equation}
+\tanh(x) = \frac{e^x - e^{-x}}{e^x + e^{-x}} \quad \text{Rango: } (-1, 1)
+\end{equation}
+
+\textbf{ReLU (Rectified Linear Unit):}
+\begin{equation}
+\text{ReLU}(x) = \max(0, x) = \begin{cases} x & \text{si } x > 0 \\ 0 & \text{si } x \leq 0 \end{cases}
+\end{equation}
+\end{mathbox}
+
+\textbf{¿Por qué ReLU es la más usada?}
+\begin{enumerate}
+    \item \textbf{Computacionalmente simple}: Solo una comparación
+    \item \textbf{No saturación positiva}: El gradiente no se desvanece para $x > 0$
+    \item \textbf{Sparsity}: Muchas neuronas se ``apagan'' (salida 0), lo que actúa como regularización
+\end{enumerate}
+
+\subsection{Redes Multicapa (MLP)}
+
+Un \textbf{Perceptrón Multicapa} (MLP) apila múltiples capas de neuronas:
+
+\begin{align}
+\mathbf{h}^{(1)} &= \sigma(\mathbf{W}^{(1)} \mathbf{x} + \mathbf{b}^{(1)}) \\
+\mathbf{h}^{(2)} &= \sigma(\mathbf{W}^{(2)} \mathbf{h}^{(1)} + \mathbf{b}^{(2)}) \\
+&\vdots \\
+\mathbf{y} &= \text{softmax}(\mathbf{W}^{(L)} \mathbf{h}^{(L-1)} + \mathbf{b}^{(L)})
+\end{align}
+
+Donde $\mathbf{h}^{(l)}$ son las activaciones de la capa $l$, también llamadas \textit{hidden states} o características latentes.
+
+\subsection{La Función Softmax}
+
+Para clasificación multiclase, la capa final usa \textbf{softmax} para convertir los logits (valores crudos) en probabilidades:
+
+\begin{equation}
+\text{softmax}(z_i) = \frac{e^{z_i}}{\sum_{j=1}^{C} e^{z_j}} \quad \text{para } i = 1, ..., C
+\end{equation}
+
+\textbf{Propiedades:}
+\begin{itemize}
+    \item $\sum_{i=1}^{C} \text{softmax}(z_i) = 1$ (suman 1, como probabilidades)
+    \item $\text{softmax}(z_i) > 0$ para todo $i$ (siempre positivas)
+    \item Amplifica las diferencias: el valor más alto domina
+\end{itemize}
+
+\begin{lstlisting}[caption={Implementación de Softmax en PyTorch}]
+import torch.nn.functional as F
+
+# logits: tensor de forma [batch_size, num_classes]
+logits = model(images)  # Salida cruda del modelo
+
+# Convertir a probabilidades
+probabilities = F.softmax(logits, dim=1)
+
+# La clase predicha es la de mayor probabilidad
+predictions = probabilities.argmax(dim=1)
+\end{lstlisting}
+
+\subsection{Función de Pérdida: Cross-Entropy}
+
+\subsubsection{Definición Matemática}
+
+La \textbf{Cross-Entropy} (Entropía Cruzada) mide la ``distancia'' entre la distribución predicha $\hat{y}$ y la distribución real $y$:
+
+\begin{equation}
+\mathcal{L}_{\text{CE}} = -\sum_{c=1}^{C} y_c \log(\hat{y}_c)
+\end{equation}
+
+Para clasificación con etiquetas ``hard'' (one-hot), donde $y_c = 1$ solo para la clase correcta $c^*$:
+
+\begin{equation}
+\mathcal{L}_{\text{CE}} = -\log(\hat{y}_{c^*})
+\end{equation}
+
+\begin{mathbox}[Intuición de Cross-Entropy]
+\begin{itemize}
+    \item Si $\hat{y}_{c^*} \approx 1$ (predicción perfecta): $\mathcal{L} \approx -\log(1) = 0$
+    \item Si $\hat{y}_{c^*} \approx 0$ (predicción terrible): $\mathcal{L} \approx -\log(0) \rightarrow \infty$
+\end{itemize}
+La pérdida penaliza exponencialmente las predicciones incorrectas con alta confianza.
+\end{mathbox}
+
+\subsubsection{Cross-Entropy Ponderada}
+
+Para datasets desbalanceados, ponderamos la pérdida de cada clase:
+
+\begin{equation}
+\mathcal{L}_{\text{weighted}} = -\sum_{c=1}^{C} w_c \cdot y_c \log(\hat{y}_c)
+\end{equation}
+
+Los pesos se calculan inversamente proporcionales a la frecuencia:
+
+\begin{equation}
+w_c = \frac{N}{C \cdot n_c}
+\end{equation}
+
+Donde $N$ es el total de muestras, $C$ el número de clases, y $n_c$ las muestras de la clase $c$.
+
+\begin{lstlisting}[caption={Cálculo de pesos de clase en Python}]
+import numpy as np
+import torch
+
+# Contar muestras por clase
+labels = train_dataset.targets  # Lista de etiquetas
+class_counts = np.bincount(labels)
+# Ejemplo: [90, 85, 35, 95, 88, 92] (MEL tiene 35)
+
+# Calcular pesos inversamente proporcionales
+weights = 1.0 / class_counts
+weights = weights / weights.sum() * len(class_counts)  # Normalizar
+# Resultado: [0.75, 0.79, 2.25, 0.71, 0.76, 0.73]
+# MEL (indice 2) tiene peso ~3x mayor
+
+# Crear loss ponderada
+class_weights = torch.FloatTensor(weights).to(device)
+criterion = nn.CrossEntropyLoss(weight=class_weights)
+\end{lstlisting}
+
+\subsection{Backpropagation: El Algoritmo de Aprendizaje}
+
+\subsubsection{El Problema de Optimización}
+
+Entrenar una red neuronal es un problema de optimización:
+
+\begin{equation}
+\boldsymbol{\theta}^* = \arg\min_{\boldsymbol{\theta}} \frac{1}{N} \sum_{i=1}^{N} \mathcal{L}(f(\mathbf{x}_i; \boldsymbol{\theta}), y_i)
+\end{equation}
+
+Donde $\boldsymbol{\theta}$ representa todos los parámetros (pesos y biases) de la red.
+
+\subsubsection{Descenso de Gradiente}
+
+La optimización se realiza mediante \textbf{descenso de gradiente}:
+
+\begin{equation}
+\boldsymbol{\theta}_{t+1} = \boldsymbol{\theta}_t - \eta \nabla_{\boldsymbol{\theta}} \mathcal{L}
+\end{equation}
+
+Donde $\eta$ es el \textbf{learning rate} (tasa de aprendizaje).
+
+\subsubsection{La Regla de la Cadena}
+
+\textbf{Backpropagation} calcula eficientemente $\nabla_{\boldsymbol{\theta}} \mathcal{L}$ usando la regla de la cadena. Para una red de dos capas:
+
+\begin{equation}
+\frac{\partial \mathcal{L}}{\partial w^{(1)}_{ij}} = \frac{\partial \mathcal{L}}{\partial \hat{y}} \cdot \frac{\partial \hat{y}}{\partial h^{(2)}} \cdot \frac{\partial h^{(2)}}{\partial h^{(1)}} \cdot \frac{\partial h^{(1)}}{\partial w^{(1)}_{ij}}
+\end{equation}
+
+El gradiente ``fluye hacia atrás'' desde la pérdida hasta los parámetros.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    node distance=2cm,
+    block/.style={rectangle, draw, fill=blue!20, minimum width=1.5cm, minimum height=0.8cm},
+    arrow/.style={->, thick}
+]
+    % Forward pass
+    \node[block] (input) at (0, 0) {$\mathbf{x}$};
+    \node[block] (h1) at (3, 0) {$\mathbf{h}^{(1)}$};
+    \node[block] (h2) at (6, 0) {$\mathbf{h}^{(2)}$};
+    \node[block] (output) at (9, 0) {$\hat{\mathbf{y}}$};
+    \node[block, fill=red!20] (loss) at (12, 0) {$\mathcal{L}$};
+
+    \draw[arrow, blue] (input) -- node[above] {$\mathbf{W}^{(1)}$} (h1);
+    \draw[arrow, blue] (h1) -- node[above] {$\mathbf{W}^{(2)}$} (h2);
+    \draw[arrow, blue] (h2) -- node[above] {$\mathbf{W}^{(3)}$} (output);
+    \draw[arrow, blue] (output) -- (loss);
+
+    % Backward pass
+    \draw[arrow, red, dashed] (loss) to[bend right=40] node[below] {$\nabla$} (output);
+    \draw[arrow, red, dashed] (output) to[bend right=40] node[below] {$\nabla$} (h2);
+    \draw[arrow, red, dashed] (h2) to[bend right=40] node[below] {$\nabla$} (h1);
+    \draw[arrow, red, dashed] (h1) to[bend right=40] node[below] {$\nabla$} (input);
+
+    % Labels
+    \node[blue] at (6, 1) {\textbf{Forward Pass}};
+    \node[red] at (6, -1.5) {\textbf{Backward Pass (Backprop)}};
+
+\end{tikzpicture}
+\caption{Forward pass (azul): cálculo de la predicción. Backward pass (rojo): cálculo de gradientes.}
+\end{figure}
+
+\subsection{Optimizadores Modernos}
+
+\subsubsection{SGD con Momentum}
+
+El SGD básico puede oscilar en valles. El \textbf{momentum} añade ``inercia'':
+
+\begin{align}
+\mathbf{v}_t &= \gamma \mathbf{v}_{t-1} + \eta \nabla_{\boldsymbol{\theta}} \mathcal{L} \\
+\boldsymbol{\theta}_{t+1} &= \boldsymbol{\theta}_t - \mathbf{v}_t
+\end{align}
+
+Donde $\gamma \approx 0.9$ es el coeficiente de momentum.
+
+\subsubsection{Adam (Adaptive Moment Estimation)}
+
+\textbf{Adam} combina momentum con learning rates adaptativos por parámetro:
+
+\begin{align}
+\mathbf{m}_t &= \beta_1 \mathbf{m}_{t-1} + (1-\beta_1) \nabla_{\boldsymbol{\theta}} \mathcal{L} \quad \text{(Primer momento)} \\
+\mathbf{v}_t &= \beta_2 \mathbf{v}_{t-1} + (1-\beta_2) (\nabla_{\boldsymbol{\theta}} \mathcal{L})^2 \quad \text{(Segundo momento)} \\
+\hat{\mathbf{m}}_t &= \frac{\mathbf{m}_t}{1-\beta_1^t} \quad \text{(Corrección de sesgo)} \\
+\hat{\mathbf{v}}_t &= \frac{\mathbf{v}_t}{1-\beta_2^t} \\
+\boldsymbol{\theta}_{t+1} &= \boldsymbol{\theta}_t - \frac{\eta}{\sqrt{\hat{\mathbf{v}}_t} + \epsilon} \hat{\mathbf{m}}_t
+\end{align}
+
+Valores típicos: $\beta_1 = 0.9$, $\beta_2 = 0.999$, $\epsilon = 10^{-8}$.
+
+\subsubsection{AdamW: Weight Decay Correcto}
+
+\textbf{AdamW} (Loshchilov \& Hutter, 2017) corrige un error sutil en la implementación original de Adam. En Adam clásico, el weight decay se aplicaba al gradiente adaptado, lo cual es matemáticamente incorrecto.
+
+\begin{equation}
+\boldsymbol{\theta}_{t+1} = \boldsymbol{\theta}_t - \eta \left( \frac{\hat{\mathbf{m}}_t}{\sqrt{\hat{\mathbf{v}}_t} + \epsilon} + \lambda \boldsymbol{\theta}_t \right)
+\end{equation}
+
+El término $\lambda \boldsymbol{\theta}_t$ es el weight decay aplicado \textbf{directamente} a los pesos.
+
+\begin{lstlisting}[caption={Configuración de AdamW en PyTorch}]
+import torch.optim as optim
+
+optimizer = optim.AdamW(
+    model.parameters(),
+    lr=1e-3,           # Learning rate
+    betas=(0.9, 0.999), # Coeficientes de momento
+    eps=1e-8,          # Estabilidad numerica
+    weight_decay=0.01  # Regularizacion L2
+)
+\end{lstlisting}
+
+% ============================================
+% 3. REDES NEURONALES CONVOLUCIONALES
+% ============================================
+\section{Redes Neuronales Convolucionales (CNNs)}
+
+\subsection{Motivación: ¿Por qué no MLPs para Imágenes?}
+
+Consideremos una imagen de 224×224 píxeles en RGB:
+
+\begin{itemize}
+    \item \textbf{Dimensión de entrada}: $224 \times 224 \times 3 = 150.528$ valores
+    \item \textbf{Primera capa densa de 1000 neuronas}: $150.528 \times 1000 = 150.528.000$ parámetros
+    \item \textbf{Solo en la primera capa}: $>$150 millones de parámetros
+\end{itemize}
+
+Esto es:
+\begin{enumerate}
+    \item \textbf{Computacionalmente prohibitivo}
+    \item \textbf{Propenso a overfitting} masivo
+    \item \textbf{No explota la estructura espacial} de las imágenes
+\end{enumerate}
+
+\subsection{Los Principios de las Convoluciones}
+
+\subsubsection{Conectividad Local}
+
+En lugar de conectar cada píxel a cada neurona, cada neurona solo ``ve'' una región pequeña llamada \textbf{campo receptivo} (receptive field):
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.5]
+    % Input image
+    \draw[fill=gray!20] (0,0) rectangle (7,7);
+    \draw[fill=blue!30] (2,2) rectangle (5,5);
+    \node at (3.5, -0.7) {Imagen 7×7};
+    \node at (3.5, 3.5) {\small 3×3};
+
+    % Arrow
+    \draw[->, thick] (8, 3.5) -- (10, 3.5);
+
+    % Single neuron output
+    \draw[fill=orange!30] (11, 3) rectangle (12, 4);
+    \node at (11.5, 2.3) {1 valor};
+
+\end{tikzpicture}
+\caption{Conectividad local: cada neurona procesa solo una región 3×3 de la imagen.}
+\end{figure}
+
+\subsubsection{Compartición de Pesos}
+
+El mismo conjunto de pesos (el \textbf{kernel} o \textbf{filtro}) se aplica a todas las posiciones de la imagen:
+
+\begin{equation}
+\text{Parámetros de un kernel 3×3} = 3 \times 3 \times \text{canales\_entrada} + 1 = 28 \text{ (para RGB)}
+\end{equation}
+
+Comparado con los 150 millones de un MLP, ¡esto es una reducción de $>$5 millones de veces!
+
+\subsubsection{Invarianza a Traslación}
+
+Gracias a la compartición de pesos, si un filtro detecta un borde vertical en la esquina superior izquierda, también lo detectará en cualquier otra posición.
+
+\subsection{La Operación de Convolución 2D}
+
+\subsubsection{Definición Matemática}
+
+La convolución discreta 2D entre una imagen $I$ y un kernel $K$ se define como:
+
+\begin{equation}
+(I * K)[i,j] = \sum_{m=-k}^{k} \sum_{n=-k}^{k} I[i+m, j+n] \cdot K[m,n]
+\end{equation}
+
+Para un kernel de tamaño $(2k+1) \times (2k+1)$.
+
+\subsubsection{Ejemplo Numérico}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.7]
+    % Input matrix
+    \matrix[matrix of math nodes, nodes={draw, minimum size=0.8cm}, column sep=-\pgflinewidth, row sep=-\pgflinewidth] (input) at (0,0) {
+        1 & 2 & 3 & 0 \\
+        0 & 1 & 2 & 1 \\
+        1 & 0 & 1 & 2 \\
+        2 & 1 & 0 & 1 \\
+    };
+    \node[below=0.3cm of input] {Entrada 4×4};
+
+    % Highlight
+    \draw[blue, thick] (input-1-1.north west) rectangle (input-3-3.south east);
+
+    % Kernel
+    \matrix[matrix of math nodes, nodes={draw, minimum size=0.8cm, fill=yellow!30}, column sep=-\pgflinewidth, row sep=-\pgflinewidth] (kernel) at (5,0) {
+        1 & 0 & -1 \\
+        1 & 0 & -1 \\
+        1 & 0 & -1 \\
+    };
+    \node[below=0.3cm of kernel] {Kernel 3×3 (Sobel)};
+
+    % Arrow
+    \node at (8, 0) {$=$};
+
+    % Calculation
+    \node[align=left] at (12, 0) {
+        $1 \cdot 1 + 2 \cdot 0 + 3 \cdot (-1) +$\\
+        $0 \cdot 1 + 1 \cdot 0 + 2 \cdot (-1) +$\\
+        $1 \cdot 1 + 0 \cdot 0 + 1 \cdot (-1)$\\[0.3cm]
+        $= 1 - 3 - 2 + 1 - 1 = \mathbf{-4}$
+    };
+
+\end{tikzpicture}
+\caption{Ejemplo de convolución: el kernel Sobel detecta bordes verticales.}
+\end{figure}
+
+\subsubsection{Parámetros de la Convolución}
+
+\begin{table}[H]
+\centering
+\caption{Parámetros que controlan la convolución}
+\begin{tabular}{@{}llp{6cm}@{}}
+\toprule
+\textbf{Parámetro} & \textbf{Símbolo} & \textbf{Efecto} \\
+\midrule
+Kernel size & $k$ & Tamaño del campo receptivo (típicamente 3×3) \\
+Stride & $s$ & Paso del deslizamiento (1 = pixel a pixel) \\
+Padding & $p$ & Relleno de bordes (para mantener tamaño) \\
+Dilation & $d$ & Espaciado entre elementos del kernel \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Fórmula del tamaño de salida:}
+\begin{equation}
+\text{output\_size} = \left\lfloor \frac{\text{input\_size} + 2p - k}{s} \right\rfloor + 1
+\end{equation}
+
+\begin{lstlisting}[caption={Capa convolucional en PyTorch}]
+import torch.nn as nn
+
+# Conv2d(in_channels, out_channels, kernel_size, stride, padding)
+conv = nn.Conv2d(
+    in_channels=3,      # RGB
+    out_channels=64,    # 64 filtros diferentes
+    kernel_size=3,      # Kernel 3x3
+    stride=1,           # Paso de 1 pixel
+    padding=1           # Mantiene el tamano espacial
+)
+
+# Para entrada [batch, 3, 224, 224]
+# Salida: [batch, 64, 224, 224]
+\end{lstlisting}
+
+\subsection{Capas de Pooling}
+
+El \textbf{pooling} reduce la dimensionalidad espacial, proporcionando:
+\begin{itemize}
+    \item Invarianza a pequeñas traslaciones
+    \item Reducción de parámetros en capas posteriores
+    \item Mayor campo receptivo efectivo
+\end{itemize}
+
+\subsubsection{Max Pooling}
+
+Toma el valor máximo en cada ventana:
+
+\begin{equation}
+\text{MaxPool}_{k \times k}(I)[i,j] = \max_{m,n \in [0,k)} I[i \cdot s + m, j \cdot s + n]
+\end{equation}
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[scale=0.6]
-    % Input matrix
-    \node at (-1, 3) {\textbf{Entrada}};
-    \foreach \i in {0,...,4} {
-        \foreach \j in {0,...,4} {
-            \draw (\i, -\j) rectangle (\i+1, -\j+1);
-        }
-    }
-    % Highlight receptive field
-    \fill[blue!30] (1,0) rectangle (4,-3);
-
-    % Kernel
-    \node at (7, 3) {\textbf{Kernel 3×3}};
-    \foreach \i in {0,...,2} {
-        \foreach \j in {0,...,2} {
-            \draw (6+\i, -\j) rectangle (7+\i, -\j+1);
-        }
-    }
-    \fill[blue!30] (6,0) rectangle (9,-3);
+    % Input
+    \matrix[matrix of math nodes, nodes={draw, minimum size=0.7cm}, column sep=-\pgflinewidth, row sep=-\pgflinewidth] (input) at (0,0) {
+        1 & 3 & 2 & 1 \\
+        4 & 6 & 5 & 2 \\
+        7 & 2 & 3 & 8 \\
+        1 & 0 & 4 & 5 \\
+    };
+    \draw[red, thick] (input-1-1.north west) rectangle (input-2-2.south east);
+    \draw[blue, thick] (input-1-3.north west) rectangle (input-2-4.south east);
+    \draw[green, thick] (input-3-1.north west) rectangle (input-4-2.south east);
+    \draw[orange, thick] (input-3-3.north west) rectangle (input-4-4.south east);
 
     % Arrow
-    \draw[->, thick] (10, -1) -- (12, -1);
+    \draw[->, thick] (3, 0) -- (5, 0) node[midway, above] {Max 2×2};
 
     % Output
-    \node at (14.5, 3) {\textbf{Salida}};
-    \foreach \i in {0,...,2} {
-        \foreach \j in {0,...,2} {
-            \draw (13+\i, -\j) rectangle (14+\i, -\j+1);
-        }
-    }
-    \fill[green!30] (14,-1) rectangle (15,-2);
+    \matrix[matrix of math nodes, nodes={draw, minimum size=0.7cm}, column sep=-\pgflinewidth, row sep=-\pgflinewidth] at (7,0) {
+        |[fill=red!30]| 6 & |[fill=blue!30]| 5 \\
+        |[fill=green!30]| 7 & |[fill=orange!30]| 8 \\
+    };
 
 \end{tikzpicture}
-\caption{Operación de convolución: el kernel 3×3 desliza sobre la entrada, produciendo un mapa de características de menor dimensión.}
+\caption{Max Pooling 2×2 con stride 2: reduce la resolución a la mitad.}
 \end{figure}
 
-\subsubsection{Componentes de una CNN}
+\subsection{Batch Normalization}
 
-Una CNN típica contiene los siguientes tipos de capas:
+\textbf{Batch Normalization} (Ioffe \& Szegedy, 2015) normaliza las activaciones de cada capa:
 
-\begin{enumerate}
-    \item \textbf{Capas Convolucionales}: Extraen características mediante filtros aprendibles
-    \item \textbf{Funciones de Activación (ReLU)}: Introducen no-linealidad: $f(x) = \max(0, x)$
-    \item \textbf{Capas de Pooling}: Reducen la dimensionalidad espacial (ej. Max Pooling)
-    \item \textbf{Batch Normalization}: Normaliza las activaciones para estabilizar el entrenamiento
-    \item \textbf{Capas Fully Connected}: Al final, para la clasificación
-\end{enumerate}
+\begin{equation}
+\hat{x}_i = \frac{x_i - \mu_B}{\sqrt{\sigma_B^2 + \epsilon}}
+\end{equation}
+
+Seguido de una transformación aprendible:
+\begin{equation}
+y_i = \gamma \hat{x}_i + \beta
+\end{equation}
+
+Donde $\mu_B$ y $\sigma_B^2$ son la media y varianza del mini-batch, y $\gamma$, $\beta$ son parámetros aprendibles.
+
+\textbf{Beneficios:}
+\begin{itemize}
+    \item Permite learning rates más altos
+    \item Reduce la dependencia de la inicialización
+    \item Actúa como regularizador (debido a la variabilidad entre batches)
+\end{itemize}
+
+\subsection{Arquitectura Típica de una CNN}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    scale=0.8,
+    block/.style={rectangle, draw, fill=#1, minimum width=0.8cm, minimum height=2cm},
+    arrow/.style={->, thick}
+]
+    % Input
+    \node[block=green!30, minimum height=3cm] (input) at (0,0) {};
+    \node[below=0.1cm of input] {\tiny 224×224×3};
+
+    % Conv blocks
+    \node[block=blue!30, minimum height=2.5cm] (conv1) at (2,0) {};
+    \node[below=0.1cm of conv1] {\tiny 112×112×64};
+
+    \node[block=blue!30, minimum height=2cm] (conv2) at (4,0) {};
+    \node[below=0.1cm of conv2] {\tiny 56×56×128};
+
+    \node[block=blue!30, minimum height=1.5cm] (conv3) at (6,0) {};
+    \node[below=0.1cm of conv3] {\tiny 28×28×256};
+
+    \node[block=blue!30, minimum height=1cm] (conv4) at (8,0) {};
+    \node[below=0.1cm of conv4] {\tiny 14×14×512};
+
+    \node[block=blue!30, minimum height=0.5cm] (conv5) at (10,0) {};
+    \node[below=0.1cm of conv5] {\tiny 7×7×512};
+
+    % FC
+    \node[block=orange!30, minimum height=0.3cm, minimum width=1.5cm] (fc) at (12.5,0) {};
+    \node[below=0.1cm of fc] {\tiny 512};
+
+    % Output
+    \node[block=red!30, minimum height=0.2cm, minimum width=0.5cm] (out) at (14.5,0) {};
+    \node[below=0.1cm of out] {\tiny 6};
+
+    % Arrows
+    \draw[arrow] (input) -- (conv1);
+    \draw[arrow] (conv1) -- (conv2);
+    \draw[arrow] (conv2) -- (conv3);
+    \draw[arrow] (conv3) -- (conv4);
+    \draw[arrow] (conv4) -- (conv5);
+    \draw[arrow] (conv5) -- (fc);
+    \draw[arrow] (fc) -- (out);
+
+    % Labels
+    \node[above=1.5cm of conv2] {\small Conv + BN + ReLU + Pool};
+    \node[above=0.5cm of fc] {\small FC};
+
+\end{tikzpicture}
+\caption{Arquitectura típica de CNN: la resolución espacial disminuye mientras aumenta la profundidad de canales.}
+\end{figure}
+
+% ============================================
+% 4. ARQUITECTURAS ESPECÍFICAS
+% ============================================
+\section{Arquitecturas: ResNet y DenseNet}
 
 \subsection{ResNet: Redes Residuales}
 
 \subsubsection{El Problema de la Degradación}
 
-Antes de ResNet, entrenar redes muy profundas era problemático. Contraintuitivamente, añadir más capas a una red \textbf{empeoraba} el rendimiento, incluso en el conjunto de entrenamiento. Esto no era overfitting, sino un problema de optimización conocido como \textbf{degradación}.
+Antes de ResNet (2015), entrenar redes muy profundas ($>$20 capas) era problemático. Sorprendentemente, añadir más capas \textbf{empeoraba} el rendimiento incluso en el conjunto de \textbf{entrenamiento}:
 
-\subsubsection{La Solución: Conexiones Residuales}
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \begin{axis}[
+        width=10cm, height=6cm,
+        xlabel={Épocas},
+        ylabel={Error (\%)},
+        legend pos=north east,
+        grid=major
+    ]
+    % 20-layer
+    \addplot[blue, thick] coordinates {(0,30) (20,15) (40,10) (60,8) (80,7) (100,6.5)};
+    % 56-layer
+    \addplot[red, thick, dashed] coordinates {(0,35) (20,20) (40,15) (60,12) (80,10) (100,9)};
 
-Kaiming He et al. (2015) propusieron una solución elegante: en lugar de aprender una función $H(x)$ directamente, la red aprende el \textbf{residuo} $F(x) = H(x) - x$.
+    \legend{20 capas, 56 capas}
+    \end{axis}
+\end{tikzpicture}
+\caption{Problema de degradación: una red de 56 capas tiene \textbf{peor} error que una de 20 capas.}
+\end{figure}
 
+Esto \textbf{no es overfitting} (el error de train también es peor). Es un problema de \textbf{optimización}: los gradientes se desvanecen o explotan en redes profundas.
+
+\subsubsection{La Solución: Bloques Residuales}
+
+La idea clave de He et al. es: si una capa adicional no ayuda, al menos debería poder aprender la \textbf{función identidad} (no hacer nada).
+
+En lugar de aprender $H(x)$ directamente, la red aprende el \textbf{residuo}:
 \begin{equation}
-\text{Salida} = F(x) + x \quad \text{(Skip Connection)}
+F(x) = H(x) - x \implies H(x) = F(x) + x
 \end{equation}
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
-    block/.style={rectangle, draw, fill=blue!20, minimum width=2cm, minimum height=0.8cm},
+    block/.style={rectangle, draw, fill=blue!20, minimum width=2.5cm, minimum height=0.7cm},
     arrow/.style={->, thick}
 ]
     % Input
-    \node (input) at (0, 0) {$x$};
+    \node (input) at (0, 0) {$\mathbf{x}$};
 
     % Blocks
-    \node[block] (conv1) at (3, 0) {Conv + BN + ReLU};
-    \node[block] (conv2) at (3, -1.5) {Conv + BN};
+    \node[block] (conv1) at (3, 0) {Conv 3×3, BN, ReLU};
+    \node[block] (conv2) at (3, -1.5) {Conv 3×3, BN};
 
     % Addition
-    \node[circle, draw, fill=green!20] (add) at (6, -0.75) {$+$};
+    \node[circle, draw, fill=green!30, minimum size=0.7cm] (add) at (6, -0.75) {$+$};
+
+    % ReLU after
+    \node[block, fill=orange!20] (relu) at (8.5, -0.75) {ReLU};
 
     % Output
-    \node (output) at (8, -0.75) {ReLU};
+    \node (output) at (10.5, -0.75) {$H(\mathbf{x})$};
 
     % Arrows
     \draw[arrow] (input) -- (conv1);
     \draw[arrow] (conv1) -- (conv2);
     \draw[arrow] (conv2) -- (add);
-    \draw[arrow] (add) -- (output);
+    \draw[arrow] (add) -- (relu);
+    \draw[arrow] (relu) -- (output);
 
     % Skip connection
-    \draw[arrow, dashed, red] (input) -- (0, -2.5) -- (6, -2.5) -- (add);
+    \draw[arrow, red, thick] (input) -- (0, -2.5) -- (6, -2.5) -- (add);
 
     % Labels
-    \node[red] at (3, -2.8) {\small Skip Connection (identidad)};
-    \node at (3, -0.9) {\small $F(x)$};
+    \node[red] at (3, -3) {\small \textbf{Skip Connection} (identidad)};
+    \node at (3, 0.8) {\small $F(\mathbf{x})$};
+    \node at (6.8, -0.3) {\small $F(\mathbf{x}) + \mathbf{x}$};
 
 \end{tikzpicture}
-\caption{Bloque Residual de ResNet. La conexión skip permite que el gradiente fluya directamente, facilitando el entrenamiento de redes profundas.}
+\caption{Bloque Residual básico de ResNet. La skip connection suma la entrada directamente a la salida.}
 \end{figure}
 
-\subsubsection{¿Por qué ResNet-18?}
+\subsubsection{¿Por qué Funciona?}
 
-La familia ResNet incluye variantes de diferentes profundidades: ResNet-18, 34, 50, 101, 152. Elegimos \textbf{ResNet-18} por las siguientes razones:
+\begin{enumerate}
+    \item \textbf{Flujo de gradiente directo}: El gradiente puede fluir directamente por la skip connection sin atravesar capas no-lineales
+    \item \textbf{Aprender identidad es fácil}: Si $F(\mathbf{x}) \approx 0$, entonces $H(\mathbf{x}) \approx \mathbf{x}$
+    \item \textbf{Ensemble implícito}: Una ResNet de $n$ bloques tiene $2^n$ caminos posibles (cada skip puede tomarse o no)
+\end{enumerate}
+
+\subsubsection{Estructura de ResNet-18}
 
 \begin{table}[H]
 \centering
-\caption{Comparación de variantes ResNet}
-\label{tab:resnet_variants}
-\begin{tabular}{@{}lccl@{}}
+\caption{Arquitectura de ResNet-18}
+\begin{tabular}{@{}llll@{}}
 \toprule
-\textbf{Modelo} & \textbf{Capas} & \textbf{Parámetros} & \textbf{Consideración} \\
+\textbf{Capa} & \textbf{Output Size} & \textbf{Estructura} & \textbf{Parámetros} \\
 \midrule
-ResNet-18 & 18 & 11.7M & \cellcolor{green!20}Ideal para datasets pequeños \\
-ResNet-34 & 34 & 21.8M & Buen balance \\
-ResNet-50 & 50 & 25.6M & Requiere más datos \\
-ResNet-101 & 101 & 44.5M & Requiere muchos datos \\
-ResNet-152 & 152 & 60.2M & Solo para datasets masivos \\
+conv1 & 112×112 & 7×7, 64, stride 2 & 9,408 \\
+pool & 56×56 & 3×3 max pool, stride 2 & 0 \\
+layer1 & 56×56 & $\begin{bmatrix} 3\times3, 64 \\ 3\times3, 64 \end{bmatrix} \times 2$ & 147,968 \\
+layer2 & 28×28 & $\begin{bmatrix} 3\times3, 128 \\ 3\times3, 128 \end{bmatrix} \times 2$ & 525,568 \\
+layer3 & 14×14 & $\begin{bmatrix} 3\times3, 256 \\ 3\times3, 256 \end{bmatrix} \times 2$ & 2,099,712 \\
+layer4 & 7×7 & $\begin{bmatrix} 3\times3, 512 \\ 3\times3, 512 \end{bmatrix} \times 2$ & 8,393,728 \\
+avgpool & 1×1 & global average pool & 0 \\
+fc & 1000 & 512 $\rightarrow$ 1000 & 513,000 \\
+\midrule
+\multicolumn{3}{r}{\textbf{Total}} & \textbf{11.7M} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\begin{tipbox}[Regla Práctica]
-Con datasets pequeños ($<$10.000 imágenes), modelos más pequeños como ResNet-18 suelen generalizar mejor. Modelos más profundos tienen mayor capacidad de memorizar el conjunto de entrenamiento (overfitting).
+\subsubsection{¿Por qué ResNet-18 y no ResNet-50?}
+
+\begin{itemize}
+    \item \textbf{ResNet-18}: 11.7M parámetros, 18 capas. \textbf{Accuracy Test: 58.4\%}.
+    \item \textbf{ResNet-50}: 25.6M parámetros, 50 capas. \textbf{Accuracy Test: 52.2\%}.
+\end{itemize}
+
+Con solo 500 imágenes de entrenamiento, nuestros experimentos confirmaron que ResNet-50 tiene demasiada capacidad y sufre de overfitting severo, obteniendo un rendimiento inferior (-6.2\%) a ResNet-18. ResNet-18 demuestra ser el balance óptimo.
+
+\begin{tipbox}[Regla Práctica para Elegir Profundidad]
+\begin{itemize}
+    \item $<$1,000 imágenes: ResNet-18 o modelos más pequeños
+    \item 1,000-10,000 imágenes: ResNet-34 o ResNet-50
+    \item 10,000-100,000 imágenes: ResNet-50 o ResNet-101
+    \item $>$100,000 imágenes: ResNet-101, ResNet-152, o arquitecturas más grandes
+\end{itemize}
 \end{tipbox}
 
-\subsection{DenseNet: Redes Densamente Conectadas}
+\subsection{DenseNet: Conectividad Densa}
 
-\subsubsection{Filosofía: Reutilizar Características}
+\subsubsection{La Idea: Reutilizar Todo}
 
-Mientras ResNet suma características mediante skip connections, \textbf{DenseNet} (Huang et al., 2017) lleva esta idea más lejos: cada capa recibe las características de \textbf{todas} las capas anteriores.
+Mientras ResNet \textbf{suma} características ($H(x) = F(x) + x$), DenseNet (Huang et al., 2017) las \textbf{concatena}:
 
 \begin{equation}
-x_l = H_l([x_0, x_1, ..., x_{l-1}])
+\mathbf{x}_l = H_l([\mathbf{x}_0, \mathbf{x}_1, ..., \mathbf{x}_{l-1}])
 \end{equation}
 
-Donde $[...]$ denota concatenación de mapas de características.
+Donde $[...]$ denota concatenación a lo largo de la dimensión de canales.
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
-    block/.style={rectangle, draw, fill=orange!30, minimum width=1cm, minimum height=0.6cm},
+    block/.style={rectangle, draw, fill=orange!30, minimum width=1.2cm, minimum height=0.6cm},
     arrow/.style={->, thick}
 ]
     % Blocks
-    \node[block] (l0) at (0, 0) {$L_0$};
-    \node[block] (l1) at (2, 0) {$L_1$};
-    \node[block] (l2) at (4, 0) {$L_2$};
-    \node[block] (l3) at (6, 0) {$L_3$};
+    \node[block] (l0) at (0, 0) {$H_0$};
+    \node[block] (l1) at (3, 0) {$H_1$};
+    \node[block] (l2) at (6, 0) {$H_2$};
+    \node[block] (l3) at (9, 0) {$H_3$};
 
-    % Dense connections
+    % Sequential connections
     \draw[arrow] (l0) -- (l1);
     \draw[arrow] (l1) -- (l2);
     \draw[arrow] (l2) -- (l3);
 
-    \draw[arrow, blue] (l0) to[bend left=40] (l2);
-    \draw[arrow, blue] (l0) to[bend left=50] (l3);
-    \draw[arrow, blue] (l1) to[bend left=40] (l3);
+    % Dense connections
+    \draw[arrow, blue] (l0) to[bend left=30] (l2);
+    \draw[arrow, blue] (l0) to[bend left=40] (l3);
+    \draw[arrow, blue] (l1) to[bend left=30] (l3);
+
+    % Labels
+    \node[below=0.5cm of l0] {$\mathbf{x}_0$};
+    \node[below=0.5cm of l1] {$[\mathbf{x}_0, \mathbf{x}_1]$};
+    \node[below=0.5cm of l2] {$[\mathbf{x}_0, \mathbf{x}_1, \mathbf{x}_2]$};
+    \node[below=0.5cm of l3] {$[\mathbf{x}_0, ..., \mathbf{x}_3]$};
 
 \end{tikzpicture}
-\caption{Conectividad densa: cada capa recibe información de todas las capas anteriores.}
+\caption{En DenseNet, cada capa recibe las características de \textbf{todas} las capas anteriores concatenadas.}
 \end{figure}
+
+\subsubsection{Growth Rate ($k$)}
+
+El \textbf{growth rate} $k$ es el número de canales que cada capa añade. Si $l_0$ es el número de canales inicial:
+
+\begin{equation}
+\text{Canales en capa } l = l_0 + k \times l
+\end{equation}
+
+Valores típicos: $k = 12, 24, 32$.
+
+\subsubsection{Transition Layers}
+
+Para evitar que el número de canales crezca demasiado, DenseNet intercala \textbf{transition layers}:
+
+\begin{itemize}
+    \item BatchNorm + ReLU + Conv 1×1 (reduce canales a la mitad)
+    \item Average Pooling 2×2 (reduce resolución espacial)
+\end{itemize}
 
 \subsubsection{Ventajas de DenseNet}
 
 \begin{enumerate}
-    \item \textbf{Reutilización de características}: Las características de capas tempranas (bordes, texturas) están disponibles directamente en capas tardías
-    \item \textbf{Flujo de gradiente mejorado}: Múltiples caminos para el gradiente durante backpropagation
-    \item \textbf{Menos parámetros}: Gracias a la reutilización, cada capa puede ser más estrecha
-    \item \textbf{Excelente en imágenes médicas}: Publicaciones demuestran su eficacia en radiografías, dermatoscopias, etc.
+    \item \textbf{Reutilización de características}: Información de capas tempranas disponible directamente en capas tardías
+    \item \textbf{Gradientes fuertes}: Múltiples caminos cortos para el gradiente
+    \item \textbf{Eficiencia de parámetros}: Capas estrechas ($k$ pequeño) pero efectivas
+    \item \textbf{Excelente en imágenes médicas}: CheXNet (Stanford, 2017) para radiografías usa DenseNet-121
 \end{enumerate}
 
 \subsubsection{¿Por qué DenseNet-121?}
 
 \begin{itemize}
-    \item \textbf{Balance tamaño/rendimiento}: 121 capas con ``solo'' 8M de parámetros
-    \item \textbf{Probado en contexto médico}: CheXNet (detección de neumonía en rayos X) se basa en DenseNet-121
-    \item \textbf{Disponible preentrenado}: En ImageNet, lo que facilita Transfer Learning
+    \item 121 capas pero solo \textbf{8 millones de parámetros} (menos que ResNet-18)
+    \item Probado exitosamente en múltiples tareas médicas
+    \item \textbf{Evidencia empírica:} En nuestros experimentos, DenseNet-121 (59.0\%) superó claramente a DenseNet-161 (54.0\%), confirmando que el aumento de profundidad es contraproducente con este tamaño de dataset.
 \end{itemize}
 
 \subsection{YOLO para Clasificación}
 
-\subsubsection{De Detección a Clasificación}
+\subsubsection{De Detector a Clasificador}
 
-YOLO (\textit{You Only Look Once}) es famoso como detector de objetos, pero Ultralytics ofrece variantes específicas para \textbf{clasificación de imágenes}. Estas versiones (YOLO11x-cls, YOLO26x-cls) mantienen el backbone convolucional potente de YOLO pero reemplazan las cabezas de detección por capas de clasificación.
+YOLO (\textit{You Only Look Once}) es famoso como detector de objetos. Sin embargo, Ultralytics ofrece versiones específicas para \textbf{clasificación} (sufijo \texttt{-cls}):
 
-\subsubsection{¿Por qué incluir YOLO?}
-
-\begin{enumerate}
-    \item \textbf{Arquitectura diferente}: Aporta diversidad al ensemble (no es ResNet ni DenseNet)
-    \item \textbf{Pipeline optimizado}: Ultralytics incluye data augmentation avanzado, entrenamiento eficiente y early stopping integrado
-    \item \textbf{Estado del arte}: Las versiones recientes (YOLO11, YOLO26) incorporan las últimas técnicas
-\end{enumerate}
-
-\subsubsection{YOLO11x vs YOLO26x}
-
-\begin{table}[H]
-\centering
-\caption{Comparación de modelos YOLO para clasificación}
-\begin{tabular}{@{}lccl@{}}
-\toprule
-\textbf{Modelo} & \textbf{Parámetros} & \textbf{F1 Test} & \textbf{Observación} \\
-\midrule
-YOLO11x-cls & $\approx$57M & 0.57 & Más rápido \\
-YOLO26x-cls & $\approx$90M & \textbf{0.60} & +3\% rendimiento \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Optamos por \textbf{YOLO26x} en el ensemble final dado su mejor rendimiento, a pesar de su mayor coste computacional.
-
-\subsection{Transfer Learning: Aprovechando Conocimiento Previo}
-
-\subsubsection{El Problema de los Datos Limitados}
-
-Entrenar una CNN desde cero requiere típicamente cientos de miles de imágenes. Con solo 500 imágenes de entrenamiento, la red no puede aprender representaciones robustas y memorizará el conjunto de entrenamiento (overfitting severo).
-
-\subsubsection{La Solución: Pesos Preentrenados}
-
-\textbf{Transfer Learning} consiste en utilizar una red ya entrenada en un dataset grande (típicamente ImageNet con 1.4 millones de imágenes) y adaptarla a nuestra tarea específica.
-
-\begin{conceptbox}[¿Por qué funciona Transfer Learning?]
-Las capas iniciales de una CNN aprenden características \textbf{universales}:
 \begin{itemize}
-    \item \textbf{Capa 1}: Detectores de bordes horizontales, verticales, diagonales
-    \item \textbf{Capa 2-3}: Texturas, patrones repetitivos
-    \item \textbf{Capas medias}: Partes de objetos (ojos, ruedas, etc.)
-    \item \textbf{Capas finales}: Conceptos específicos del dataset original
+    \item Mantienen el backbone convolucional potente
+    \item Reemplazan las cabezas de detección por clasificación global
+    \item Incluyen pipeline de entrenamiento optimizado
 \end{itemize}
-Los bordes y texturas son útiles para \textbf{cualquier} tarea de visión, incluida la dermatoscopia.
-\end{conceptbox}
 
-\subsubsection{Estrategia de Fine-Tuning}
-
-Nuestra estrategia de fine-tuning tiene dos componentes:
+\subsubsection{¿Por qué incluir YOLO en el ensemble?}
 
 \begin{enumerate}
-    \item \textbf{Congelar capas tempranas}: Mantener fijos los pesos de las primeras capas (características universales)
-    \item \textbf{Descongelar capas finales}: Permitir que las últimas capas se adapten a la dermatoscopia
-    \item \textbf{Reemplazar el clasificador}: Cambiar la capa final de 1000 clases (ImageNet) a 6 clases (nuestro problema)
+    \item \textbf{Arquitectura diferente}: No es ni ResNet ni DenseNet, aporta diversidad
+    \item \textbf{Técnicas modernas}: CSP (Cross Stage Partial), SPPF, etc.
+    \item \textbf{Pipeline integrado}: Data augmentation, warmup, EMA, etc.
+    \item \textbf{Estado del arte}: YOLO26x incorpora avances de 2024-2025
 \end{enumerate}
 
-\begin{lstlisting}[caption={Estrategia de Fine-Tuning en ResNet-18}]
-# 1. Congelar todo
+% ============================================
+% 5. TRANSFER LEARNING
+% ============================================
+\section{Transfer Learning en Profundidad}
+
+\subsection{El Problema de los Datos Limitados}
+
+Entrenar una CNN desde cero requiere:
+\begin{itemize}
+    \item \textbf{Muchos datos}: Cientos de miles de imágenes
+    \item \textbf{Mucho tiempo}: Días o semanas de entrenamiento
+    \item \textbf{Mucho cómputo}: GPUs potentes
+\end{itemize}
+
+Con 500 imágenes, una CNN entrenada desde cero:
+\begin{enumerate}
+    \item Memorizará el conjunto de entrenamiento
+    \item Tendrá error de validación muy alto
+    \item Aprenderá características de bajo nivel pero no de alto nivel
+\end{enumerate}
+
+\subsection{La Solución: Pesos Preentrenados}
+
+\subsubsection{¿Qué aprenden las CNNs?}
+
+Las diferentes capas de una CNN aprenden características de distinta abstracción:
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    layer/.style={rectangle, draw, minimum width=2.5cm, minimum height=1cm, fill=#1}
+]
+    \node[layer=green!30] (l1) at (0, 0) {Capa 1-2};
+    \node[layer=blue!30] (l2) at (0, -1.5) {Capa 3-4};
+    \node[layer=orange!30] (l3) at (0, -3) {Capa 5-7};
+    \node[layer=red!30] (l4) at (0, -4.5) {Capa 8+};
+
+    \node[right=0.5cm of l1, align=left] {Bordes, gradientes, colores básicos\\(Universales para cualquier imagen)};
+    \node[right=0.5cm of l2, align=left] {Texturas, patrones repetitivos\\(Bastante universales)};
+    \node[right=0.5cm of l3, align=left] {Partes de objetos (ojos, ruedas...)\\(Semi-específicas)};
+    \node[right=0.5cm of l4, align=left] {Objetos completos, conceptos\\(Específicas del dataset)};
+
+\end{tikzpicture}
+\caption{Jerarquía de características aprendidas por una CNN.}
+\end{figure}
+
+\subsubsection{¿Por qué ImageNet?}
+
+ImageNet es un dataset de 1.4 millones de imágenes en 1000 categorías. Los modelos preentrenados en ImageNet han aprendido características visuales robustas que son útiles para \textbf{cualquier} tarea de visión, incluyendo:
+
+\begin{itemize}
+    \item Detección de bordes y texturas
+    \item Reconocimiento de patrones geométricos
+    \item Sensibilidad a cambios de iluminación
+    \item Representaciones jerárquicas de complejidad creciente
+\end{itemize}
+
+\subsection{Estrategias de Fine-Tuning}
+
+\subsubsection{Estrategia 1: Feature Extraction (Congelar todo)}
+
+\begin{lstlisting}[caption={Feature extraction: solo entrenar la cabeza}]
+# Congelar TODAS las capas
 for param in model.parameters():
     param.requires_grad = False
 
-# 2. Descongelar solo layer4 (ultimo bloque)
-for param in model.layer4.parameters():
+# Solo la nueva cabeza es entrenable
+model.fc = nn.Linear(512, 6)
+# Unicos parametros entrenables: 512 * 6 + 6 = 3,078
+\end{lstlisting}
+
+\textbf{Cuándo usar}: Muy pocos datos ($<$100) o el dominio es muy similar a ImageNet.
+
+\subsubsection{Estrategia 2: Fine-Tuning Parcial (Nuestra elección)}
+
+\begin{lstlisting}[caption={Fine-tuning parcial: descongelar últimas capas}]
+# Congelar todo
+for param in model.parameters():
+    param.requires_grad = False
+
+# Descongelar solo las ultimas capas
+for param in model.layer4.parameters():  # ResNet
     param.requires_grad = True
 
-# 3. Nueva cabeza para 6 clases
+# Nueva cabeza
 model.fc = nn.Sequential(
     nn.Dropout(0.5),
     nn.Linear(512, 6)
 )
 \end{lstlisting}
 
-\subsubsection{Learning Rates Diferenciales}
+\textbf{Cuándo usar}: Datos moderados (100-10,000) o el dominio es diferente (fotos naturales $\rightarrow$ dermatoscopia).
 
-Una técnica avanzada que mejora el fine-tuning es usar \textbf{learning rates diferentes} para distintas partes de la red:
+\subsubsection{Estrategia 3: Fine-Tuning Completo}
 
-\begin{itemize}
-    \item \textbf{Capas preentrenadas (layer4)}: Learning rate bajo ($10^{-4}$) para ajustes finos sin destruir el conocimiento previo
-    \item \textbf{Nueva cabeza (fc)}: Learning rate alto ($10^{-3}$) porque debe aprender desde cero
-\end{itemize}
+\begin{lstlisting}[caption={Fine-tuning completo: todo entrenable}]
+# Todo entrenable (no congelar nada)
+model.fc = nn.Linear(512, 6)
 
-\begin{lstlisting}[caption={Optimizador con learning rates diferenciales}]
+# Usar learning rate bajo para no destruir pesos
+optimizer = optim.Adam(model.parameters(), lr=1e-5)
+\end{lstlisting}
+
+\textbf{Cuándo usar}: Muchos datos ($>$10,000) y el dominio es muy diferente.
+
+\subsection{Learning Rates Diferenciales}
+
+Una técnica clave es usar \textbf{learning rates diferentes} para distintas partes de la red:
+
+\begin{equation}
+\text{LR}_{\text{preentrenado}} << \text{LR}_{\text{nuevo}}
+\end{equation}
+
+\begin{lstlisting}[caption={Learning rates diferenciales en PyTorch}]
 optimizer = optim.AdamW([
-    {'params': model.layer4.parameters(), 'lr': 1e-4},  # Ajuste fino
-    {'params': model.fc.parameters(), 'lr': 1e-3}       # Aprendizaje rapido
+    # Capas preentrenadas: LR bajo (ajuste fino)
+    {'params': model.layer4.parameters(), 'lr': 1e-4},
+
+    # Nueva cabeza: LR alto (aprender desde cero)
+    {'params': model.fc.parameters(), 'lr': 1e-3}
 ], weight_decay=0.01)
 \end{lstlisting}
 
-\subsection{Data Augmentation: Creando Variabilidad Artificial}
+\textbf{Intuición}:
+\begin{itemize}
+    \item Las capas preentrenadas ya ``saben'' cosas útiles. Un LR alto las destruiría.
+    \item La nueva cabeza está inicializada aleatoriamente. Necesita LR alto para aprender rápido.
+\end{itemize}
 
-\subsubsection{¿Qué es Data Augmentation?}
+% ============================================
+% 6. REGULARIZACIÓN
+% ============================================
+\section{Técnicas de Regularización}
 
-El \textbf{Data Augmentation} consiste en aplicar transformaciones aleatorias a las imágenes durante el entrenamiento para crear ``nuevas'' muestras artificiales. Esto ayuda al modelo a ser invariante a estas transformaciones.
+La regularización es crucial para evitar \textbf{overfitting}, especialmente con datasets pequeños.
 
-\subsubsection{Transformaciones Aplicadas}
+\subsection{¿Qué es el Overfitting?}
 
-\begin{table}[H]
+El \textbf{overfitting} ocurre cuando el modelo memoriza el conjunto de entrenamiento en lugar de aprender patrones generalizables:
+
+\begin{figure}[H]
 \centering
-\caption{Pipeline de Data Augmentation utilizado}
-\begin{tabular}{@{}lp{8cm}@{}}
-\toprule
-\textbf{Transformación} & \textbf{Justificación} \\
-\midrule
-Resize a 224×224 & Tamaño estándar para Transfer Learning \\
-Random Horizontal Flip (50\%) & Una lesión puede aparecer en cualquier orientación \\
-Random Vertical Flip (50\%) & Ídem (particularmente útil en dermatoscopia) \\
-HSV Jitter & Simula variaciones de iluminación y color de piel \\
-Random Resized Crop (0.5-1.0) & Diferentes escalas y encuadres \\
-\bottomrule
-\end{tabular}
-\end{table}
+\begin{tikzpicture}
+    \begin{axis}[
+        width=10cm, height=6cm,
+        xlabel={Épocas},
+        ylabel={Pérdida},
+        legend pos=north east,
+        grid=major
+    ]
+    % Train loss
+    \addplot[blue, thick] coordinates {(0,2) (10,0.8) (20,0.3) (30,0.1) (40,0.05) (50,0.02)};
+    % Val loss
+    \addplot[red, thick, dashed] coordinates {(0,2.2) (10,1) (20,0.8) (30,0.9) (40,1.1) (50,1.3)};
 
-\subsubsection{¿Por qué usar el Pipeline de Ultralytics?}
+    \legend{Train Loss, Val Loss}
 
-Utilizamos \texttt{classify\_augmentations} de Ultralytics en lugar de un pipeline manual de torchvision por varias razones:
+    % Overfitting region
+    \draw[<->, thick, green!50!black] (axis cs:20,0.3) -- (axis cs:20,0.8);
+    \node[green!50!black] at (axis cs:25, 0.55) {\small Gap};
 
-\begin{enumerate}
-    \item \textbf{Consistencia con YOLO}: El mismo preprocesamiento para todos los modelos del ensemble
-    \item \textbf{Optimización}: Pipeline altamente optimizado y probado
-    \item \textbf{HSV Jitter}: Transformación en espacio HSV que es más perceptualmente relevante que RGB
-\end{enumerate}
+    \end{axis}
 
-\begin{lstlisting}[caption={Pipeline de Data Augmentation}]
-from ultralytics.data.augment import classify_augmentations
+    % Annotation
+    \draw[<-] (7.5, 1) -- (8.5, 0.5) node[right] {\small Overfitting comienza};
 
-train_pipeline = classify_augmentations(
-    size=224,
-    mean=[0.485, 0.456, 0.406],  # Media de ImageNet
-    std=[0.229, 0.224, 0.225],    # Desv. estandar de ImageNet
-    scale=(0.5, 1.0),
-    hflip=0.5,
-    vflip=0.5,
-    hsv_h=0.015, hsv_s=0.7, hsv_v=0.4
-)
-\end{lstlisting}
+\end{tikzpicture}
+\caption{El train loss sigue bajando, pero el val loss empieza a subir: overfitting.}
+\end{figure}
 
-\subsection{Métricas de Evaluación}
+\subsection{Dropout}
 
-\subsubsection{¿Por qué NO usar solo Accuracy?}
+\subsubsection{Funcionamiento}
 
-El \textbf{Accuracy} (precisión global) es la métrica más intuitiva:
+Durante el entrenamiento, \textbf{Dropout} apaga aleatoriamente una fracción $p$ de las neuronas:
 
 \begin{equation}
-\text{Accuracy} = \frac{\text{Predicciones Correctas}}{\text{Total de Predicciones}}
+\tilde{h}_i = \begin{cases}
+0 & \text{con probabilidad } p \\
+\frac{h_i}{1-p} & \text{con probabilidad } 1-p
+\end{cases}
 \end{equation}
 
-Sin embargo, en datasets desbalanceados el accuracy es \textbf{engañoso}. Un modelo que siempre prediga la clase mayoritaria tendría alto accuracy pero sería inútil clínicamente.
+El factor $\frac{1}{1-p}$ es la \textbf{inverted dropout scaling}, que mantiene la magnitud esperada constante.
 
-\begin{warningbox}[Ejemplo del Peligro del Accuracy]
-Si el 60\% de las imágenes fueran de clase NEV, un modelo que siempre predijera ``NEV'' tendría 60\% de accuracy, pero fallaría en detectar \textbf{todos} los melanomas. Esto sería inaceptable médicamente.
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    neuron/.style={circle, draw, minimum size=0.6cm},
+    active/.style={neuron, fill=blue!30},
+    dropped/.style={neuron, fill=gray!30, dashed}
+]
+    % Layer 1
+    \node[active] (a1) at (0, 2) {};
+    \node[dropped] (a2) at (0, 1) {};
+    \node[active] (a3) at (0, 0) {};
+    \node[active] (a4) at (0, -1) {};
+    \node[dropped] (a5) at (0, -2) {};
+
+    % Layer 2
+    \node[active] (b1) at (3, 1.5) {};
+    \node[active] (b2) at (3, 0.5) {};
+    \node[dropped] (b3) at (3, -0.5) {};
+    \node[active] (b4) at (3, -1.5) {};
+
+    % Connections (only from active to active)
+    \foreach \i in {1,3,4} {
+        \foreach \j in {1,2,4} {
+            \draw[->] (a\i) -- (b\j);
+        }
+    }
+
+    % Labels
+    \node[below=0.3cm of a5] {Capa $l$};
+    \node[below=0.3cm of b4] {Capa $l+1$};
+    \node[right=1cm of b2] {$p = 0.4$};
+
+\end{tikzpicture}
+\caption{Dropout con $p=0.4$: las neuronas grises están ``apagadas'' en esta iteración.}
+\end{figure}
+
+\subsubsection{¿Por qué Funciona?}
+
+\begin{enumerate}
+    \item \textbf{Ensemble implícito}: Cada forward pass usa una ``sub-red'' diferente. Es como entrenar $2^n$ modelos.
+    \item \textbf{Previene co-adaptación}: Las neuronas no pueden depender excesivamente de otras específicas.
+    \item \textbf{Ruido como regularización}: Añade estocasticidad que dificulta la memorización.
+\end{enumerate}
+
+\begin{lstlisting}[caption={Dropout en PyTorch}]
+# En la definicion del modelo
+self.classifier = nn.Sequential(
+    nn.Dropout(p=0.5),  # 50% de neuronas apagadas
+    nn.Linear(512, 6)
+)
+
+# IMPORTANTE: Dropout se comporta diferente en train vs eval
+model.train()  # Dropout activo
+model.eval()   # Dropout desactivado (usa todas las neuronas)
+\end{lstlisting}
+
+\subsection{Weight Decay (Regularización L2)}
+
+\subsubsection{Formulación Matemática}
+
+El \textbf{weight decay} añade una penalización por pesos grandes a la función de pérdida:
+
+\begin{equation}
+\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{CE}} + \frac{\lambda}{2} \|\mathbf{w}\|_2^2 = \mathcal{L}_{\text{CE}} + \frac{\lambda}{2} \sum_i w_i^2
+\end{equation}
+
+Donde $\lambda$ es el coeficiente de weight decay.
+
+\subsubsection{Efecto en la Actualización}
+
+El gradiente de la pérdida total es:
+\begin{equation}
+\nabla_{\mathbf{w}} \mathcal{L}_{\text{total}} = \nabla_{\mathbf{w}} \mathcal{L}_{\text{CE}} + \lambda \mathbf{w}
+\end{equation}
+
+La actualización de pesos se convierte en:
+\begin{equation}
+\mathbf{w}_{t+1} = \mathbf{w}_t - \eta (\nabla_{\mathbf{w}} \mathcal{L}_{\text{CE}} + \lambda \mathbf{w}_t) = (1 - \eta\lambda)\mathbf{w}_t - \eta \nabla_{\mathbf{w}} \mathcal{L}_{\text{CE}}
+\end{equation}
+
+El término $(1 - \eta\lambda)$ ``encoge'' los pesos hacia cero en cada paso.
+
+\subsubsection{Intuición}
+
+\begin{itemize}
+    \item \textbf{Pesos grandes $\rightarrow$ funciones complejas}: Pueden memorizar ruido
+    \item \textbf{Pesos pequeños $\rightarrow$ funciones suaves}: Generalizan mejor
+    \item \textbf{Navaja de Occam}: Preferimos la solución más simple que explique los datos
+\end{itemize}
+
+\subsection{Data Augmentation como Regularización}
+
+El Data Augmentation no solo aumenta artificialmente el dataset, también actúa como \textbf{regularización implícita}:
+
+\begin{itemize}
+    \item El modelo nunca ve exactamente la misma imagen dos veces
+    \item Aprende invarianzas (rotación, escala, color) en lugar de memorizarlas
+    \item Equivalente a suavizar la función de decisión
+\end{itemize}
+
+\subsection{Early Stopping}
+
+\textbf{Early stopping} detiene el entrenamiento cuando el val loss empieza a empeorar:
+
+\begin{lstlisting}[caption={Early stopping manual}]
+best_val_f1 = 0
+patience = 5
+no_improve_count = 0
+
+for epoch in range(max_epochs):
+    train_one_epoch(model)
+    val_f1 = evaluate(model, val_loader)
+
+    if val_f1 > best_val_f1:
+        best_val_f1 = val_f1
+        save_checkpoint(model)
+        no_improve_count = 0
+    else:
+        no_improve_count += 1
+
+    if no_improve_count >= patience:
+        print("Early stopping!")
+        break
+
+# Restaurar el mejor modelo
+model.load_state_dict(best_checkpoint)
+\end{lstlisting}
+
+% ============================================
+% 7. MÉTRICAS
+% ============================================
+\section{Métricas de Evaluación en Detalle}
+
+\subsection{Matriz de Confusión}
+
+La \textbf{matriz de confusión} es la base de todas las métricas de clasificación:
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \matrix[matrix of nodes, nodes={draw, minimum size=1.2cm, anchor=center},
+            column 1/.style={nodes={draw=none}},
+            row 1/.style={nodes={draw=none}}] (m) {
+        & Pred: Positivo & Pred: Negativo \\
+        Real: Positivo & |[fill=green!30]| TP & |[fill=red!30]| FN \\
+        Real: Negativo & |[fill=red!30]| FP & |[fill=green!30]| TN \\
+    };
+
+    % Labels
+    \node[right=0.5cm of m-2-2, align=left] {\small True Positive\\(Acierto)};
+    \node[right=0.5cm of m-2-3, align=left] {\small False Negative\\(Caso perdido)};
+    \node[right=0.5cm of m-3-2, align=left] {\small False Positive\\(Falsa alarma)};
+    \node[right=0.5cm of m-3-3, align=left] {\small True Negative\\(Acierto)};
+
+\end{tikzpicture}
+\caption{Matriz de confusión para clasificación binaria.}
+\end{figure}
+
+Para multiclase, la matriz es $C \times C$ donde $M_{ij}$ = número de muestras de clase $i$ predichas como clase $j$.
+
+\subsection{Métricas Derivadas}
+
+\subsubsection{Accuracy (Exactitud)}
+
+\begin{equation}
+\text{Accuracy} = \frac{TP + TN}{TP + TN + FP + FN} = \frac{\text{Correctos}}{\text{Total}}
+\end{equation}
+
+\begin{warningbox}[Problema del Accuracy con Datos Desbalanceados]
+Si el 95\% de las imágenes son benignas, un modelo que siempre prediga ``benigno'' tiene 95\% accuracy pero es \textbf{inútil clínicamente}.
 \end{warningbox}
 
-\subsubsection{Precision, Recall y F1-Score}
+\subsubsection{Precision (Valor Predictivo Positivo)}
 
-Para cada clase $c$, definimos:
+\begin{equation}
+\text{Precision} = \frac{TP}{TP + FP} = P(\text{Real}=1 | \text{Pred}=1)
+\end{equation}
 
-\begin{align}
-\text{Precision}_c &= \frac{TP_c}{TP_c + FP_c} = \frac{\text{Verdaderos Positivos}}{\text{Predichos como } c} \\[0.3cm]
-\text{Recall}_c &= \frac{TP_c}{TP_c + FN_c} = \frac{\text{Verdaderos Positivos}}{\text{Realmente son } c} \\[0.3cm]
-\text{F1}_c &= 2 \cdot \frac{\text{Precision}_c \cdot \text{Recall}_c}{\text{Precision}_c + \text{Recall}_c}
-\end{align}
+``De todos los que diagnostiqué como melanoma, ¿cuántos realmente lo eran?''
 
-\begin{conceptbox}[Interpretación Clínica]
-\begin{itemize}
-    \item \textbf{Precision}: ``De todos los que diagnostiqué como melanoma, ¿cuántos realmente lo eran?'' (Evita falsos positivos / alarmas innecesarias)
-    \item \textbf{Recall (Sensibilidad)}: ``De todos los melanomas reales, ¿cuántos detecté?'' (Evita falsos negativos / casos perdidos)
-    \item \textbf{F1-Score}: Media armónica, balancea ambas métricas
-\end{itemize}
-\end{conceptbox}
+\textbf{Alta precisión} = pocas falsas alarmas = pacientes no preocupados innecesariamente.
 
-\subsubsection{F1-Score Macro: Nuestra Métrica Principal}
+\subsubsection{Recall (Sensibilidad)}
 
-El \textbf{F1-Score Macro} es el promedio simple del F1 de cada clase:
+\begin{equation}
+\text{Recall} = \frac{TP}{TP + FN} = P(\text{Pred}=1 | \text{Real}=1)
+\end{equation}
+
+``De todos los melanomas reales, ¿cuántos detecté?''
+
+\textbf{Alto recall} = pocos casos perdidos = melanomas detectados a tiempo.
+
+\subsubsection{F1-Score}
+
+\begin{equation}
+\text{F1} = 2 \cdot \frac{\text{Precision} \cdot \text{Recall}}{\text{Precision} + \text{Recall}} = \frac{2 \cdot TP}{2 \cdot TP + FP + FN}
+\end{equation}
+
+El F1 es la \textbf{media armónica} de precision y recall. Es bajo si \textbf{cualquiera} de los dos es bajo.
+
+\subsection{Agregación para Multiclase}
+
+\subsubsection{Macro-Average}
 
 \begin{equation}
 \text{F1-Macro} = \frac{1}{C} \sum_{c=1}^{C} \text{F1}_c
 \end{equation}
 
-Elegimos F1-Macro porque:
+Promedio simple: \textbf{todas las clases pesan igual}, independientemente de su frecuencia.
+
+\textbf{Elegimos F1-Macro} porque:
 \begin{itemize}
-    \item \textbf{Da igual importancia a todas las clases}, independientemente de su frecuencia
-    \item \textbf{Penaliza fallar en clases minoritarias} como MEL
-    \item \textbf{Es la métrica estándar} para clasificación multiclase desbalanceada
+    \item Da igual importancia a MEL (35 muestras) que a NEV (95 muestras)
+    \item Penaliza fuertemente fallar en clases minoritarias
+    \item Es el estándar para clasificación desbalanceada
 \end{itemize}
 
-\subsubsection{Cohen's Kappa}
+\subsubsection{Weighted-Average}
 
-El \textbf{Coeficiente Kappa de Cohen} mide el acuerdo entre predicciones y etiquetas reales, corrigiendo por el acuerdo que ocurriría por azar:
+\begin{equation}
+\text{F1-Weighted} = \sum_{c=1}^{C} \frac{n_c}{N} \cdot \text{F1}_c
+\end{equation}
+
+Pondera por la frecuencia de cada clase. Menos sensible a clases minoritarias.
+
+\subsubsection{Micro-Average}
+
+\begin{equation}
+\text{F1-Micro} = \frac{2 \cdot \sum_c TP_c}{2 \cdot \sum_c TP_c + \sum_c FP_c + \sum_c FN_c}
+\end{equation}
+
+Agrega todos los TP, FP, FN globalmente. Equivale al accuracy en multiclase.
+
+\subsection{Cohen's Kappa}
+
+El \textbf{coeficiente Kappa} mide el acuerdo corrigiendo por el azar:
 
 \begin{equation}
 \kappa = \frac{p_o - p_e}{1 - p_e}
 \end{equation}
 
-Donde $p_o$ es la proporción de acuerdos observados y $p_e$ es la proporción de acuerdos esperados por azar.
-
-\begin{table}[H]
-\centering
-\caption{Interpretación del Coeficiente Kappa}
-\begin{tabular}{@{}ll@{}}
-\toprule
-\textbf{Valor de $\kappa$} & \textbf{Interpretación} \\
-\midrule
-$< 0$ & Peor que el azar \\
-$0.00 - 0.20$ & Acuerdo insignificante \\
-$0.21 - 0.40$ & Acuerdo regular \\
-$0.41 - 0.60$ & Acuerdo moderado \\
-$0.61 - 0.80$ & Acuerdo sustancial \\
-$0.81 - 1.00$ & Acuerdo casi perfecto \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{Técnicas de Regularización}
-
-La regularización es crucial para evitar el \textbf{overfitting}, especialmente con datasets pequeños.
-
-\subsubsection{Dropout}
-
-El \textbf{Dropout} (Srivastava et al., 2014) consiste en ``apagar'' aleatoriamente un porcentaje de neuronas durante el entrenamiento.
-
-\begin{equation}
-\hat{y}_i = \begin{cases}
-0 & \text{con probabilidad } p \\
-\frac{y_i}{1-p} & \text{con probabilidad } 1-p
-\end{cases}
-\end{equation}
-
+Donde:
 \begin{itemize}
-    \item \textbf{Efecto}: Impide que la red dependa excesivamente de neuronas específicas
-    \item \textbf{Interpretación}: Entrena implícitamente un ensemble de sub-redes
-    \item \textbf{Valor usado}: $p = 0.5$ (50\% de neuronas apagadas)
+    \item $p_o$ = proporción de acuerdos observados (accuracy)
+    \item $p_e$ = proporción de acuerdos esperados por azar
 \end{itemize}
 
-\subsubsection{Weight Decay (Regularización L2)}
+\begin{lstlisting}[caption={Cálculo de métricas en Python}]
+from sklearn.metrics import (
+    classification_report,
+    confusion_matrix,
+    f1_score,
+    cohen_kappa_score
+)
 
-El \textbf{Weight Decay} añade un término de penalización a la función de pérdida que castiga pesos grandes:
+# Obtener predicciones
+y_true = []  # Etiquetas reales
+y_pred = []  # Predicciones del modelo
 
-\begin{equation}
-\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{CE}} + \lambda \sum_i w_i^2
-\end{equation}
+# Reporte completo
+print(classification_report(y_true, y_pred, target_names=clases))
 
-Donde $\lambda$ es el coeficiente de weight decay (usamos $\lambda = 0.01$).
+# Metricas especificas
+f1_macro = f1_score(y_true, y_pred, average='macro')
+kappa = cohen_kappa_score(y_true, y_pred)
 
-\begin{itemize}
-    \item \textbf{Efecto}: Favorece pesos pequeños, produciendo modelos más ``suaves''
-    \item \textbf{Beneficio}: Reduce la capacidad de memorizar el conjunto de entrenamiento
-\end{itemize}
-
-\subsection{Optimizador: AdamW}
-
-Utilizamos \textbf{AdamW} (Loshchilov \& Hutter, 2017), una variante de Adam que implementa correctamente el weight decay.
-
-\begin{conceptbox}[¿Por qué AdamW y no SGD o Adam?]
-\begin{itemize}
-    \item \textbf{vs SGD}: AdamW adapta el learning rate por parámetro, convergiendo más rápido
-    \item \textbf{vs Adam clásico}: Adam implementaba weight decay incorrectamente (lo aplicaba al gradiente adaptado). AdamW lo aplica directamente a los pesos, lo cual es teóricamente correcto
-\end{itemize}
-\end{conceptbox}
-
-\subsection{Función de Pérdida: Cross-Entropy Ponderada}
-
-\subsubsection{Cross-Entropy Estándar}
-
-Para clasificación multiclase, la pérdida estándar es \textbf{Cross-Entropy}:
-
-\begin{equation}
-\mathcal{L}_{\text{CE}} = -\sum_{c=1}^{C} y_c \log(\hat{y}_c)
-\end{equation}
-
-Donde $y_c$ es la etiqueta real (one-hot) y $\hat{y}_c$ es la probabilidad predicha para la clase $c$.
-
-\subsubsection{Ponderación por Clase}
-
-Para datasets desbalanceados, ponderamos la pérdida de cada clase inversamente proporcional a su frecuencia:
-
-\begin{equation}
-w_c = \frac{1}{n_c} \cdot \frac{N}{C}
-\end{equation}
-
-Donde $n_c$ es el número de muestras de la clase $c$, $N$ es el total de muestras, y $C$ es el número de clases.
-
-\begin{lstlisting}[caption={Cálculo de pesos de clase}]
-class_counts = np.bincount(labels)
-weights = 1.0 / class_counts
-weights = weights / weights.sum() * len(class_counts)
-# Resultado: [0.75, 0.75, 2.25, 0.75, 0.75, 0.75]
-# MEL (indice 2) tiene peso 3x mayor
+# Matriz de confusion
+cm = confusion_matrix(y_true, y_pred)
 \end{lstlisting}
 
-\subsection{Ensemble: Combinando Múltiples Modelos}
+% ============================================
+% PARTE II: IMPLEMENTACIÓN PRÁCTICA
+% ============================================
+\newpage
+\part{Implementación Práctica}
 
-\subsubsection{¿Por qué un Ensemble?}
+\section{Pipeline de Datos}
 
-Un \textbf{ensemble} combina las predicciones de múltiples modelos. Esto funciona porque diferentes arquitecturas cometen \textbf{errores diferentes}. Al promediar, los errores individuales tienden a cancelarse.
+\subsection{Estructura de Carpetas}
 
-\subsubsection{Estrategia: Promedio Ponderado de Probabilidades}
+\begin{lstlisting}[language=bash, caption={Estructura del dataset}]
+DATASET_SPLIT/
+    train/
+        ACK/
+            img001.jpg
+            img002.jpg
+            ...
+        BCC/
+        MEL/
+        NEV/
+        SCC/
+        SEK/
+    val/
+        ACK/
+        ...
+    test/
+        ACK/
+        ...
+\end{lstlisting}
 
-Nuestra estrategia de fusión es un \textbf{promedio ponderado} (soft voting):
+\subsection{Data Augmentation}
 
-\begin{equation}
-P_{\text{ensemble}}(c) = \sum_{m=1}^{M} \alpha_m \cdot P_m(c) \quad \text{donde } \sum_{m} \alpha_m = 1
-\end{equation}
+\begin{lstlisting}[caption={Pipeline de Data Augmentation con Ultralytics}]
+from ultralytics.data.augment import classify_augmentations, classify_transforms
 
-Los pesos $\alpha_m$ se asignan según el rendimiento individual de cada modelo:
+# Constantes de normalizacion ImageNet
+MEAN = [0.485, 0.456, 0.406]
+STD = [0.229, 0.224, 0.225]
+IMG_SIZE = 224
 
-\begin{table}[H]
-\centering
-\caption{Pesos del ensemble final}
-\begin{tabular}{@{}lcc@{}}
-\toprule
-\textbf{Modelo} & \textbf{F1 Individual} & \textbf{Peso en Ensemble} \\
-\midrule
-YOLO26x & 0.60 & 60\% \\
-DenseNet-121 & 0.52 & 20\% \\
-ResNet-18 & 0.56 & 20\% \\
-\bottomrule
-\end{tabular}
-\end{table}
+# Pipeline de ENTRENAMIENTO (con augmentation)
+train_transform = classify_augmentations(
+    size=IMG_SIZE,
+    mean=MEAN,
+    std=STD,
+    scale=(0.5, 1.0),  # RandomResizedCrop
+    hflip=0.5,         # Flip horizontal
+    vflip=0.5,         # Flip vertical (util en dermoscopia)
+    hsv_h=0.015,       # Jitter de Hue
+    hsv_s=0.7,         # Jitter de Saturacion
+    hsv_v=0.4,         # Jitter de Valor/Brillo
+    erasing=0.0        # Random Erasing (desactivado)
+)
 
-\begin{tipbox}[Principio del Ensemble]
-El modelo con mejor rendimiento individual (YOLO26x) recibe el mayor peso. Los otros modelos aportan ``diversidad'' que puede corregir errores específicos de YOLO.
-\end{tipbox}
+# Pipeline de VALIDACION/TEST (determinista)
+val_transform = classify_transforms(
+    size=IMG_SIZE,
+    mean=MEAN,
+    std=STD
+)
+\end{lstlisting}
+
+\subsection{DataLoaders}
+
+\begin{lstlisting}[caption={Creación de DataLoaders}]
+from torchvision import datasets
+from torch.utils.data import DataLoader
+
+BATCH_SIZE = 64
+NUM_WORKERS = 8
+
+# Datasets
+train_dataset = datasets.ImageFolder(
+    f"{RUTA_BASE}/train",
+    transform=train_transform
+)
+val_dataset = datasets.ImageFolder(
+    f"{RUTA_BASE}/val",
+    transform=val_transform
+)
+test_dataset = datasets.ImageFolder(
+    f"{RUTA_BASE}/test",
+    transform=val_transform
+)
+
+# DataLoaders
+train_loader = DataLoader(
+    train_dataset,
+    batch_size=BATCH_SIZE,
+    shuffle=True,           # Mezclar en cada epoca
+    num_workers=NUM_WORKERS,
+    pin_memory=True,        # Acelera transferencia CPU->GPU
+    persistent_workers=True # Mantiene workers entre epocas
+)
+
+val_loader = DataLoader(
+    val_dataset,
+    batch_size=BATCH_SIZE,
+    shuffle=False,          # Nunca mezclar validacion
+    num_workers=NUM_WORKERS,
+    pin_memory=True
+)
+
+test_loader = DataLoader(
+    test_dataset,
+    batch_size=BATCH_SIZE,
+    shuffle=False,
+    num_workers=NUM_WORKERS,
+    pin_memory=True
+)
+\end{lstlisting}
+
+\section{Entrenamiento de Modelos}
+
+\subsection{Función de Entrenamiento Completa}
+
+\begin{lstlisting}[caption={Loop de entrenamiento con todas las mejoras}]
+import copy
+import torch
+import torch.nn as nn
+from sklearn.metrics import f1_score
+
+def entrenar_modelo(model, train_loader, val_loader, criterion,
+                    optimizer, device, epochs=25,
+                    nombre_archivo="mejor_modelo.pth"):
+    """
+    Entrena un modelo con:
+    - Guardado del mejor modelo (por F1-Macro)
+    - Tracking de historial
+    - Evaluacion en validacion cada epoca
+    """
+    print(f"Iniciando entrenamiento por {epochs} epocas...")
+
+    historial = {
+        'train_loss': [],
+        'val_loss': [],
+        'val_f1': []
+    }
+
+    best_f1 = 0.0
+    best_model_wts = copy.deepcopy(model.state_dict())
+
+    for epoch in range(epochs):
+        # ========== FASE DE ENTRENAMIENTO ==========
+        model.train()  # Modo entrenamiento (Dropout activo)
+        running_loss = 0.0
+
+        for inputs, labels in train_loader:
+            # Mover a GPU
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+
+            # Forward pass
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+
+            # Backward pass
+            loss.backward()
+            optimizer.step()
+
+            running_loss += loss.item() * inputs.size(0)
+
+        epoch_train_loss = running_loss / len(train_loader.dataset)
+
+        # ========== FASE DE VALIDACION ==========
+        model.eval()  # Modo evaluacion (Dropout desactivado)
+        val_loss = 0.0
+        y_true = []
+        y_pred = []
+
+        with torch.no_grad():  # No calcular gradientes
+            for inputs, labels in val_loader:
+                inputs = inputs.to(device)
+                labels = labels.to(device)
+
+                outputs = model(inputs)
+                loss = criterion(outputs, labels)
+                val_loss += loss.item() * inputs.size(0)
+
+                _, preds = torch.max(outputs, 1)
+                y_true.extend(labels.cpu().numpy())
+                y_pred.extend(preds.cpu().numpy())
+
+        epoch_val_loss = val_loss / len(val_loader.dataset)
+        epoch_val_f1 = f1_score(y_true, y_pred, average='macro')
+
+        # Guardar en historial
+        historial['train_loss'].append(epoch_train_loss)
+        historial['val_loss'].append(epoch_val_loss)
+        historial['val_f1'].append(epoch_val_f1)
+
+        # Mensaje de progreso
+        print(f"Ep {epoch+1}/{epochs} | "
+              f"Train Loss: {epoch_train_loss:.3f} | "
+              f"Val Loss: {epoch_val_loss:.3f} | "
+              f"Val F1: {epoch_val_f1:.4f}", end="")
+
+        # ========== GUARDAR MEJOR MODELO ==========
+        if epoch_val_f1 > best_f1:
+            best_f1 = epoch_val_f1
+            best_model_wts = copy.deepcopy(model.state_dict())
+            torch.save(model.state_dict(), nombre_archivo)
+            print(" [MEJOR] Guardado.")
+        else:
+            print("")
+
+    print(f"\nFin. Mejor F1 en Validacion: {best_f1:.4f}")
+
+    # Restaurar los MEJORES pesos (no los ultimos)
+    model.load_state_dict(best_model_wts)
+    return model, historial
+\end{lstlisting}
+
+\subsection{Configuración de ResNet-18}
+
+\begin{lstlisting}[caption={Fine-tuning de ResNet-18}]
+import torchvision.models as models
+import torch.nn as nn
+import torch.optim as optim
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# 1. Cargar modelo preentrenado
+model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+
+# 2. Congelar todas las capas
+for param in model.parameters():
+    param.requires_grad = False
+
+# 3. Descongelar layer4 (ultimo bloque residual)
+for param in model.layer4.parameters():
+    param.requires_grad = True
+
+# 4. Reemplazar la cabeza de clasificacion
+num_ftrs = model.fc.in_features  # 512
+num_classes = 6
+
+model.fc = nn.Sequential(
+    nn.Dropout(0.5),
+    nn.Linear(num_ftrs, num_classes)
+)
+
+# 5. Mover a GPU
+model = model.to(device)
+
+# 6. Optimizador con learning rates diferenciales
+optimizer = optim.AdamW([
+    {'params': model.layer4.parameters(), 'lr': 1e-4},  # LR bajo
+    {'params': model.fc.parameters(), 'lr': 1e-3}       # LR alto
+], weight_decay=0.01)
+
+# 7. Loss ponderada
+class_weights = torch.FloatTensor([0.75, 0.75, 2.25, 0.75, 0.75, 0.75])
+criterion = nn.CrossEntropyLoss(weight=class_weights.to(device))
+
+# 8. Entrenar
+model, historial = entrenar_modelo(
+    model, train_loader, val_loader,
+    criterion, optimizer, device,
+    epochs=25,
+    nombre_archivo="ResNet18_best.pth"
+)
+\end{lstlisting}
+
+\subsection{Configuración de DenseNet-121}
+
+\begin{lstlisting}[caption={Fine-tuning de DenseNet-121}]
+# 1. Cargar modelo preentrenado
+model = models.densenet121(weights=models.DenseNet121_Weights.DEFAULT)
+
+# 2. Congelar todo
+for param in model.features.parameters():
+    param.requires_grad = False
+
+# 3. Descongelar denseblock4 y norm5
+for param in model.features.denseblock4.parameters():
+    param.requires_grad = True
+for param in model.features.norm5.parameters():
+    param.requires_grad = True
+
+# 4. Nueva cabeza
+num_ftrs = model.classifier.in_features  # 1024
+model.classifier = nn.Sequential(
+    nn.Dropout(0.5),
+    nn.Linear(num_ftrs, 6)
+)
+
+model = model.to(device)
+
+# 5. Optimizador
+optimizer = optim.AdamW([
+    {'params': model.features.denseblock4.parameters(), 'lr': 1e-4},
+    {'params': model.features.norm5.parameters(), 'lr': 1e-4},
+    {'params': model.classifier.parameters(), 'lr': 1e-3}
+], weight_decay=0.01)
+\end{lstlisting}
+
+\subsection{Entrenamiento de YOLO}
+
+\begin{lstlisting}[caption={Entrenamiento de YOLO26x para clasificación}]
+from ultralytics import YOLO
+
+# Cargar modelo preentrenado para clasificacion
+model = YOLO('yolo26x-cls.pt')
+
+# Entrenar
+results = model.train(
+    data=RUTA_DATASET,
+    epochs=25,
+    imgsz=224,
+    batch=16,
+    patience=5,         # Early stopping
+    lr0=0.0001,         # Learning rate inicial
+    optimizer='AdamW',
+    project='SkinCancer_Project',
+    name='YOLO26x_Run'
+)
+\end{lstlisting}
+
+\section{Construcción del Ensemble}
+
+\begin{lstlisting}[caption={Implementación completa del ensemble}]
+import torch
+import torch.nn.functional as F
+import numpy as np
+from PIL import Image
+from torchvision import transforms
+
+def crear_ensemble(rutas_modelos, ruta_test, device):
+    """
+    Crea un ensemble de modelos y evalua en test.
+
+    Pesos del ensemble:
+    - YOLO26x: 60% (mejor modelo individual)
+    - DenseNet: 20%
+    - ResNet: 20%
+    """
+
+    # 1. Cargar modelos PyTorch
+    def cargar_resnet(path, num_classes):
+        model = models.resnet18(weights=None)
+        model.fc = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.Linear(512, num_classes)
+        )
+        model.load_state_dict(torch.load(path, map_location=device))
+        model.to(device)
+        model.eval()
+        return model
+
+    def cargar_densenet(path, num_classes):
+        model = models.densenet121(weights=None)
+        model.classifier = nn.Sequential(
+            nn.Dropout(0.5),
+            nn.Linear(1024, num_classes)
+        )
+        model.load_state_dict(torch.load(path, map_location=device))
+        model.to(device)
+        model.eval()
+        return model
+
+    model_resnet = cargar_resnet(rutas_modelos['resnet'], 6)
+    model_densenet = cargar_densenet(rutas_modelos['densenet'], 6)
+    model_yolo = YOLO(rutas_modelos['yolo'])
+
+    # 2. Preprocesamiento
+    transform = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406],
+                           [0.229, 0.224, 0.225])
+    ])
+
+    # 3. Inferencia
+    y_true = []
+    y_pred = []
+    clases = sorted(os.listdir(ruta_test))
+
+    for idx_clase, nombre_clase in enumerate(clases):
+        ruta_clase = os.path.join(ruta_test, nombre_clase)
+        imagenes = [f for f in os.listdir(ruta_clase)
+                   if f.endswith(('.jpg', '.png'))]
+
+        for img_name in imagenes:
+            img_path = os.path.join(ruta_clase, img_name)
+
+            # Prediccion PyTorch
+            img = Image.open(img_path).convert('RGB')
+            img_tensor = transform(img).unsqueeze(0).to(device)
+
+            with torch.no_grad():
+                probs_res = F.softmax(model_resnet(img_tensor), dim=1)
+                probs_dense = F.softmax(model_densenet(img_tensor), dim=1)
+
+            probs_res = probs_res.cpu().numpy()[0]
+            probs_dense = probs_dense.cpu().numpy()[0]
+
+            # Prediccion YOLO
+            result = model_yolo(img_path, verbose=False)[0]
+            probs_yolo = np.zeros(6)
+            for i, conf in enumerate(result.probs.data.cpu().numpy()):
+                nombre = result.names[i]
+                if nombre in clases:
+                    probs_yolo[clases.index(nombre)] = conf
+
+            # FUSION: Promedio ponderado
+            probs_final = (
+                0.20 * probs_res +
+                0.20 * probs_dense +
+                0.60 * probs_yolo
+            )
+
+            pred = np.argmax(probs_final)
+
+            y_true.append(idx_clase)
+            y_pred.append(pred)
+
+    return y_true, y_pred, clases
+\end{lstlisting}
 
 % ============================================
-% 3. METODOLOGÍA
+% PARTE III: RESULTADOS Y CONCLUSIONES
 % ============================================
-\section{Metodología}
+\newpage
+\part{Resultados y Conclusiones}
 
-\subsection{Pipeline General}
-
-El pipeline de experimentación sigue las siguientes fases:
-
-\begin{enumerate}
-    \item \textbf{Análisis Exploratorio}: Distribución de clases, tamaños de imagen
-    \item \textbf{Preprocesamiento}: Data augmentation, normalización ImageNet
-    \item \textbf{Entrenamiento Individual}: ResNet-18, DenseNet-121, YOLO26x
-    \item \textbf{Evaluación Individual}: Métricas por modelo en el conjunto de test
-    \item \textbf{Construcción del Ensemble}: Combinación ponderada
-    \item \textbf{Evaluación Final}: Métricas del ensemble
-\end{enumerate}
-
-\subsection{Configuración del Entrenamiento}
-
-\begin{table}[H]
-\centering
-\caption{Hiperparámetros de entrenamiento}
-\begin{tabular}{@{}ll@{}}
-\toprule
-\textbf{Parámetro} & \textbf{Valor} \\
-\midrule
-Tamaño de imagen & 224 × 224 \\
-Batch size & 64 \\
-Épocas máximas & 25 \\
-Learning rate (capas preentrenadas) & $10^{-4}$ \\
-Learning rate (cabeza nueva) & $10^{-3}$ \\
-Optimizador & AdamW \\
-Weight decay & 0.01 \\
-Dropout & 0.5 \\
-Early stopping (YOLO) & patience = 5 \\
-Criterio de guardado & Mejor F1-Macro en validación \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{Estrategia de Fine-Tuning por Arquitectura}
-
-\begin{table}[H]
-\centering
-\caption{Capas descongeladas por arquitectura}
-\begin{tabular}{@{}lll@{}}
-\toprule
-\textbf{Modelo} & \textbf{Capas Descongeladas} & \textbf{Razón} \\
-\midrule
-ResNet-18 & layer4 + fc & Último bloque residual \\
-DenseNet-121 & denseblock4 + norm5 + classifier & Último bloque denso \\
-YOLO26x & Entrenamiento completo & Pipeline Ultralytics \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{Normalización}
-
-Todas las imágenes se normalizan con la media y desviación estándar de ImageNet:
-
-\begin{align}
-\mu &= [0.485, 0.456, 0.406] \\
-\sigma &= [0.229, 0.224, 0.225]
-\end{align}
-
-Esto es necesario porque los modelos preentrenados esperan entradas normalizadas de esta forma.
-
-% ============================================
-% 4. RESULTADOS
-% ============================================
 \section{Resultados Experimentales}
-
-\subsection{Análisis del Dataset}
-
-\begin{figure}[H]
-\centering
-% Placeholder para imagen
-\fbox{\parbox{0.8\textwidth}{\centering\vspace{2cm}\textbf{[FIGURA: Distribución de clases por conjunto (train/val/test)]}\vspace{2cm}}}
-\caption{Distribución de clases en cada subconjunto. Nótese el marcado desbalanceo en MEL.}
-\label{fig:class_distribution}
-\end{figure}
 
 \subsection{Resultados por Modelo Individual}
 
-\subsubsection{ResNet-18}
-
 \begin{table}[H]
 \centering
-\caption{Resultados de ResNet-18 en el conjunto de test}
-\begin{tabular}{@{}lcccc@{}}
-\toprule
-\textbf{Clase} & \textbf{Precision} & \textbf{Recall} & \textbf{F1-Score} & \textbf{Support} \\
-\midrule
-ACK & 0.45 & 0.50 & 0.47 & 30 \\
-BCC & 0.50 & 0.47 & 0.48 & 30 \\
-\rowcolor{red!10} MEL & 0.75 & 0.55 & 0.63 & 11 \\
-NEV & 0.65 & 0.57 & 0.61 & 30 \\
-SCC & 0.44 & 0.37 & 0.40 & 30 \\
-SEK & 0.63 & 0.83 & 0.72 & 30 \\
-\midrule
-\textbf{Macro avg} & 0.57 & 0.55 & \textbf{0.55} & 161 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\textbf{Mejor F1 en Validación}: 0.5596
-
-\subsubsection{DenseNet-121}
-
-\begin{table}[H]
-\centering
-\caption{Resultados de DenseNet-121 en el conjunto de test}
-\begin{tabular}{@{}lcccc@{}}
-\toprule
-\textbf{Clase} & \textbf{Precision} & \textbf{Recall} & \textbf{F1-Score} & \textbf{Support} \\
-\midrule
-ACK & 0.55 & 0.37 & 0.44 & 30 \\
-BCC & 0.48 & 0.53 & 0.51 & 30 \\
-\rowcolor{red!10} MEL & 0.50 & 0.45 & 0.48 & 11 \\
-NEV & 0.56 & 0.50 & 0.53 & 30 \\
-SCC & 0.39 & 0.47 & 0.42 & 30 \\
-SEK & 0.61 & 0.77 & 0.68 & 30 \\
-\midrule
-\textbf{Macro avg} & 0.52 & 0.51 & \textbf{0.51} & 161 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\textbf{Mejor F1 en Validación}: 0.5997
-
-\subsubsection{YOLO26x}
-
-\begin{table}[H]
-\centering
-\caption{Resultados de YOLO26x en el conjunto de test}
-\begin{tabular}{@{}lcccc@{}}
-\toprule
-\textbf{Clase} & \textbf{Precision} & \textbf{Recall} & \textbf{F1-Score} & \textbf{Support} \\
-\midrule
-ACK & 0.58 & 0.50 & 0.54 & 30 \\
-BCC & 0.58 & 0.47 & 0.52 & 30 \\
-\rowcolor{green!20} MEL & \textbf{1.00} & 0.55 & \textbf{0.71} & 11 \\
-NEV & 0.67 & 0.60 & 0.63 & 30 \\
-SCC & 0.43 & 0.50 & 0.46 & 30 \\
-SEK & 0.65 & 0.93 & 0.77 & 30 \\
-\midrule
-\textbf{Macro avg} & 0.65 & 0.59 & \textbf{0.60} & 161 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{tipbox}[Resultado Destacado: MEL]
-YOLO26x logra \textbf{100\% de precisión en Melanoma}. Esto significa que cuando el modelo predice melanoma, \textbf{siempre acierta}. No hay falsos positivos, evitando alarmas innecesarias a pacientes.
-\end{tipbox}
-
-\subsection{Comparativa de Modelos Individuales}
-
-\begin{table}[H]
-\centering
-\caption{Resumen comparativo de modelos individuales}
+\caption{Comparación de modelos individuales en el conjunto de test}
 \begin{tabular}{@{}lccccc@{}}
 \toprule
-\textbf{Modelo} & \textbf{Val F1} & \textbf{Test Acc} & \textbf{Test F1-Macro} & \textbf{MEL F1} & \textbf{Kappa} \\
+\textbf{Modelo} & \textbf{Accuracy} & \textbf{F1-Macro} & \textbf{Precision} & \textbf{MEL F1} & \textbf{Kappa} \\
 \midrule
-ResNet-18 & 0.5596 & 0.55 & 0.55 & 0.63 & 0.46 \\
-DenseNet-121 & 0.5997 & 0.52 & 0.51 & 0.48 & 0.42 \\
-\rowcolor{green!20} YOLO26x & --- & \textbf{0.60} & \textbf{0.60} & \textbf{0.71} & \textbf{0.52} \\
+ResNet-18 & 0.55 & 0.55 & 0.57 & 0.63 & 0.46 \\
+DenseNet-121 & 0.52 & 0.51 & 0.52 & 0.48 & 0.42 \\
+\rowcolor{green!20} YOLO26x & \textbf{0.60} & \textbf{0.60} & \textbf{0.65} & \textbf{0.71} & \textbf{0.52} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Observaciones}:
-\begin{itemize}
-    \item YOLO26x es el mejor modelo individual en todas las métricas
-    \item Existe discrepancia entre F1 de validación y test en DenseNet (posible overfitting)
-    \item Todos los modelos superan el umbral de ``acuerdo moderado'' en Kappa ($\kappa > 0.4$)
-\end{itemize}
+\begin{figure}[H]
+\centering
+\fbox{\parbox{0.9\textwidth}{\centering\vspace{3cm}\textbf{[FIGURA: Comparativa de F1-Score por clase para cada modelo]}\vspace{3cm}}}
+\caption{Comparación del F1-Score por clase. YOLO26x destaca especialmente en MEL.}
+\label{fig:f1_por_clase}
+\end{figure}
 
-\subsection{Resultados del Ensemble}
+\subsection{Resultado del Ensemble}
 
 \begin{table}[H]
 \centering
-\caption{Resultados del Ensemble (ResNet + DenseNet + YOLO26x)}
+\caption{Resultados del Ensemble Final (ResNet + DenseNet + YOLO26x)}
 \begin{tabular}{@{}lcccc@{}}
 \toprule
 \textbf{Clase} & \textbf{Precision} & \textbf{Recall} & \textbf{F1-Score} & \textbf{Support} \\
@@ -943,148 +1970,91 @@ SEK & 0.71 & 0.97 & 0.82 & 30 \\
 \end{tabular}
 \end{table}
 
-\begin{table}[H]
-\centering
-\caption{Métricas globales del Ensemble}
-\begin{tabular}{@{}ll@{}}
-\toprule
-\textbf{Métrica} & \textbf{Valor} \\
-\midrule
-Accuracy Global & 0.6273 (62.7\%) \\
-F1-Score Macro & 0.63 \\
-Precision Macro & 0.68 \\
-Recall Macro & 0.62 \\
-Cohen's Kappa & 0.55 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\subsection{Análisis de la Matriz de Confusión}
+\begin{tipbox}[Resultado Destacado: Melanoma]
+El ensemble logra \textbf{100\% de precisión en Melanoma}. Esto significa que cuando el sistema predice melanoma, \textbf{siempre acierta}. No hay falsos positivos, evitando alarmas innecesarias a pacientes.
+\end{tipbox}
 
 \begin{figure}[H]
 \centering
-% Placeholder para imagen
-\fbox{\parbox{0.7\textwidth}{\centering\vspace{5cm}\textbf{[FIGURA: Matriz de Confusión del Ensemble]}\vspace{5cm}}}
-\caption{Matriz de confusión del ensemble en el conjunto de test. Los valores en la diagonal representan predicciones correctas.}
+\includegraphics[width=0.7\textwidth]{figuras/ensemble_confmat.png}
+\caption{Matriz de confusión del ensemble en test. Los valores en la diagonal son predicciones correctas.}
 \label{fig:confusion_matrix}
 \end{figure}
 
-\textbf{Observaciones de la matriz de confusión}:
-\begin{itemize}
-    \item \textbf{SEK} es la clase mejor clasificada (29/30 correctos, F1=0.82)
-    \item \textbf{MEL} mantiene 100\% de precisión (0 falsos positivos)
-    \item Las confusiones principales ocurren entre:
-    \begin{itemize}
-        \item ACK $\leftrightarrow$ SCC (ambas queratosis, visualmente similares)
-        \item BCC $\leftrightarrow$ NEV (carcinoma vs lunar)
-    \end{itemize}
-\end{itemize}
-
-\subsection{Curvas de Entrenamiento}
-
-\begin{figure}[H]
-\centering
-% Placeholder para imagen
-\fbox{\parbox{0.9\textwidth}{\centering\vspace{4cm}\textbf{[FIGURA: Evolución de Loss y F1 durante el entrenamiento de ResNet-18]}\vspace{4cm}}}
-\caption{Curvas de entrenamiento de ResNet-18. Izquierda: Train/Val Loss. Derecha: Val F1-Score.}
-\label{fig:training_curves}
-\end{figure}
-
-\textbf{Observaciones}:
-\begin{itemize}
-    \item El train loss desciende consistentemente
-    \item El val loss empieza a subir alrededor de la época 15 (inicio de overfitting)
-    \item El mejor F1 de validación se alcanza antes del overfitting severo
-    \item El mecanismo de ``guardar el mejor modelo'' previene usar pesos sobreajustados
-\end{itemize}
-
-% ============================================
-% 5. DISCUSIÓN
-% ============================================
-\section{Discusión}
-
-\subsection{Análisis del Rendimiento}
-
-\subsubsection{¿Por qué YOLO26x es el mejor modelo?}
-
-YOLO26x supera a las arquitecturas clásicas por varias razones:
-
-\begin{enumerate}
-    \item \textbf{Arquitectura más moderna}: Incorpora técnicas de 2024-2025 (attention mechanisms, depthwise separable convolutions, etc.)
-    \item \textbf{Pipeline de entrenamiento optimizado}: Early stopping, data augmentation avanzado, warm-up de learning rate
-    \item \textbf{Mayor capacidad}: Con $\approx$90M de parámetros, puede capturar patrones más complejos
-\end{enumerate}
-
-\subsubsection{¿Aporta el Ensemble Valor?}
+\subsection{Mejora del Ensemble sobre el Mejor Modelo Individual}
 
 \begin{table}[H]
 \centering
-\caption{Comparación: Mejor modelo individual vs Ensemble}
+\caption{Comparación: YOLO26x solo vs Ensemble}
 \begin{tabular}{@{}lccc@{}}
 \toprule
-\textbf{Sistema} & \textbf{F1-Macro} & \textbf{Precision} & \textbf{MEL F1} \\
+\textbf{Sistema} & \textbf{Accuracy} & \textbf{F1-Macro} & \textbf{Precision} \\
 \midrule
-YOLO26x (solo) & 0.60 & 0.65 & 0.71 \\
-\rowcolor{green!20} Ensemble & \textbf{0.63} & \textbf{0.68} & 0.71 \\
+YOLO26x (solo) & 0.60 & 0.60 & 0.65 \\
+\rowcolor{green!20} Ensemble & \textbf{0.627} & \textbf{0.63} & \textbf{0.68} \\
 \midrule
-\textbf{Mejora} & \textbf{+3\%} & \textbf{+3\%} & = \\
+\textbf{Mejora} & \textbf{+2.7\%} & \textbf{+3\%} & \textbf{+3\%} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-El ensemble aporta una \textbf{mejora de 3 puntos porcentuales} en F1-Macro y Precision, manteniendo el excelente rendimiento en MEL. Esta mejora, aunque modesta, es valiosa en contexto médico donde cada punto de precisión puede significar diagnósticos correctos adicionales.
+\section{Análisis y Discusión}
 
-\subsection{Limitaciones del Estudio}
+\subsection{¿Por qué YOLO26x es el mejor modelo individual?}
 
 \begin{enumerate}
-    \item \textbf{Tamaño del dataset}: Con solo 500 imágenes de entrenamiento, los modelos tienen capacidad limitada de generalización
-
-    \item \textbf{Desbalanceo extremo en MEL}: Solo $\approx$35 imágenes de melanoma para entrenamiento dificultan el aprendizaje de características discriminativas
-
-    \item \textbf{Overfitting}: A pesar de las técnicas de regularización, se observa divergencia train/val loss
-
-    \item \textbf{Validación externa}: Los resultados son específicos de este dataset; se requeriría validación en datasets externos para confirmar generalización
+    \item \textbf{Arquitectura moderna}: Incorpora técnicas de 2024-2025 como CSPNet, SPPF, y attention mechanisms
+    \item \textbf{Pipeline optimizado}: Data augmentation avanzado, warmup, EMA (Exponential Moving Average)
+    \item \textbf{Mayor capacidad}: $\approx$90M de parámetros vs 11.7M de ResNet-18
 \end{enumerate}
 
-\subsection{Comparación con el Estado del Arte}
+\subsection{¿Por qué el Ensemble mejora?}
 
-Los modelos de clasificación de lesiones cutáneas en competiciones ISIC alcanzan F1-Macro superiores al 85\% en datasets más grandes. Nuestro 63\% refleja principalmente la limitación del tamaño del dataset, no deficiencias metodológicas.
+El ensemble combina modelos con \textbf{errores diferentes}:
 
-% ============================================
-% 6. CONCLUSIONES
-% ============================================
-\section{Conclusiones}
+\begin{itemize}
+    \item \textbf{YOLO26x}: Muy bueno en MEL y SEK, pero confunde ACK/SCC
+    \item \textbf{ResNet-18}: Balance razonable, mejor en NEV
+    \item \textbf{DenseNet-121}: Captura características diferentes por su arquitectura densa
+\end{itemize}
 
-\subsection{Resumen de Logros}
+Al promediar, los errores individuales tienden a cancelarse.
+
+\subsection{Limitaciones}
 
 \begin{enumerate}
-    \item Se implementaron y compararon tres arquitecturas de Deep Learning (ResNet-18, DenseNet-121, YOLO26x) para clasificación de lesiones cutáneas
+    \item \textbf{Dataset pequeño}: 500 imágenes de entrenamiento limitan la capacidad de generalización
+    \item \textbf{Desbalanceo en MEL}: Solo $\approx$35 imágenes de melanoma dificultan el aprendizaje
+    \item \textbf{Overfitting}: A pesar de la regularización, se observa divergencia train/val
+    \item \textbf{Recall de MEL}: 55\% significa que perdemos 45\% de los melanomas (5/11)
+\end{enumerate}
 
-    \item Se aplicó exitosamente \textbf{Transfer Learning}, fundamental dado el tamaño limitado del dataset
+\section{Conclusiones}
 
-    \item Se construyó un \textbf{ensemble} que mejora el rendimiento del mejor modelo individual en 3 puntos porcentuales
+\subsection{Logros del Trabajo}
 
-    \item Se logró \textbf{100\% de precisión en la detección de Melanoma}, la clase clínicamente más crítica
-
-    \item Se documentaron y justificaron todas las decisiones técnicas desde una perspectiva tanto teórica como práctica
+\begin{enumerate}
+    \item Se implementaron y compararon tres arquitecturas de Deep Learning para clasificación de lesiones cutáneas
+    \item Se aplicó Transfer Learning exitosamente, fundamental dado el tamaño limitado del dataset
+    \item Se construyó un ensemble que mejora el rendimiento del mejor modelo individual en 3 puntos
+    \item Se logró 100\% de precisión en la detección de Melanoma
 \end{enumerate}
 
 \subsection{Métricas Finales}
 
 \begin{table}[H]
 \centering
-\caption{Resultados finales del sistema}
+\caption{Resumen de resultados del sistema}
 \begin{tabular}{@{}ll@{}}
 \toprule
 \textbf{Métrica} & \textbf{Valor} \\
 \midrule
-\textbf{Accuracy} & 62.7\% \\
-\textbf{F1-Score Macro} & 0.63 \\
-\textbf{Precision Macro} & 0.68 \\
-\textbf{Recall Macro} & 0.62 \\
-\textbf{Cohen's Kappa} & 0.55 (Acuerdo Moderado) \\
-\textbf{MEL F1-Score} & 0.71 \\
-\textbf{MEL Precision} & 1.00 \\
+Accuracy Global & 62.7\% \\
+F1-Score Macro & 0.63 \\
+Precision Macro & 0.68 \\
+Cohen's Kappa & 0.55 (Acuerdo Moderado) \\
+MEL F1-Score & 0.71 \\
+MEL Precision & \textbf{1.00} \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -1093,170 +2063,41 @@ Los modelos de clasificación de lesiones cutáneas en competiciones ISIC alcanz
 
 \begin{itemize}
     \item \textbf{El tamaño del dataset es crítico}: La principal limitación no fue la arquitectura sino la cantidad de datos
-
     \item \textbf{Transfer Learning es esencial}: Sin pesos preentrenados, el overfitting sería mucho peor
-
     \item \textbf{Las métricas correctas importan}: F1-Macro reveló problemas que Accuracy ocultaba
-
-    \item \textbf{Los ensembles aportan robustez}: Incluso modelos individualmente ``peores'' contribuyen positivamente
-
-    \item \textbf{YOLO no es solo para detección}: Las versiones de clasificación son competitivas con arquitecturas clásicas
+    \item \textbf{Los ensembles aportan robustez}: Incluso modelos ``peores'' contribuyen positivamente
 \end{itemize}
 
 \subsection{Trabajo Futuro}
 
-Este trabajo establece la línea base para la parte de Deep Learning. En las siguientes fases del proyecto integrado se:
+Este trabajo establece la línea base de Deep Learning. En las siguientes fases:
 
 \begin{enumerate}
-    \item Integrarán los \textbf{datos tabulares} (metadatos del paciente) mediante modelos de Machine Learning clásico
-
-    \item Implementará la \textbf{fusión} de ambas modalidades mediante:
-    \begin{itemize}
-        \item Fusión tardía (stacking/ensemble)
-        \item Fusión temprana (embeddings de imagen + features tabulares)
-    \end{itemize}
-
-    \item Evaluará si la combinación \textbf{imagen + metadatos} supera a cada modalidad por separado
+    \item \textbf{Javi}: Integrará datos tabulares (metadatos del paciente) con ML clásico
+    \item \textbf{Pedro}: Implementará la fusión multimodal (imágenes + tabular)
+    \item Se evaluará si imagen + metadatos supera a cada modalidad por separado
 \end{enumerate}
 
 % ============================================
 % REFERENCIAS
 % ============================================
+\newpage
 \section*{Referencias}
 
 \begin{enumerate}
-    \item He, K., Zhang, X., Ren, S., \& Sun, J. (2016). Deep residual learning for image recognition. In \textit{CVPR}.
+    \item He, K., Zhang, X., Ren, S., \& Sun, J. (2016). Deep residual learning for image recognition. \textit{CVPR}.
 
-    \item Huang, G., Liu, Z., Van Der Maaten, L., \& Weinberger, K. Q. (2017). Densely connected convolutional networks. In \textit{CVPR}.
+    \item Huang, G., Liu, Z., Van Der Maaten, L., \& Weinberger, K. Q. (2017). Densely connected convolutional networks. \textit{CVPR}.
 
-    \item Loshchilov, I., \& Hutter, F. (2017). Decoupled weight decay regularization. \textit{arXiv preprint arXiv:1711.05101}.
+    \item Loshchilov, I., \& Hutter, F. (2017). Decoupled weight decay regularization. \textit{arXiv:1711.05101}.
 
-    \item Srivastava, N., Hinton, G., Krizhevsky, A., Sutskever, I., \& Salakhutdinov, R. (2014). Dropout: a simple way to prevent neural networks from overfitting. \textit{JMLR}.
+    \item Srivastava, N., et al. (2014). Dropout: a simple way to prevent neural networks from overfitting. \textit{JMLR}.
+
+    \item Ioffe, S., \& Szegedy, C. (2015). Batch normalization: Accelerating deep network training. \textit{ICML}.
 
     \item Ultralytics (2024). YOLO Documentation. \url{https://docs.ultralytics.com}
 
-    \item ISIC Archive. International Skin Imaging Collaboration. \url{https://www.isic-archive.com}
+    \item ISIC Archive. \url{https://www.isic-archive.com}
 \end{enumerate}
-
-% ============================================
-% APÉNDICE
-% ============================================
-\appendix
-\section{Código de Entrenamiento}
-
-A continuación se presenta el código completo utilizado para entrenar los modelos.
-
-\subsection{Función de Entrenamiento}
-
-\begin{lstlisting}[caption={Función principal de entrenamiento}]
-def entrenar_modelo(model, train_loader, val_loader, criterion,
-                    optimizer, device, epochs=25, nombre_archivo="modelo.pth"):
-
-    historial = {'train_loss': [], 'val_loss': [], 'val_f1': []}
-    best_f1 = 0.0
-    best_model_wts = copy.deepcopy(model.state_dict())
-
-    for epoch in range(epochs):
-        # FASE ENTRENAMIENTO
-        model.train()
-        running_loss = 0.0
-
-        for inputs, labels in train_loader:
-            inputs, labels = inputs.to(device), labels.to(device)
-
-            optimizer.zero_grad()
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-
-            running_loss += loss.item() * inputs.size(0)
-
-        epoch_train_loss = running_loss / len(train_loader.dataset)
-
-        # FASE VALIDACION
-        model.eval()
-        val_loss = 0.0
-        y_true, y_pred = [], []
-
-        with torch.no_grad():
-            for inputs, labels in val_loader:
-                inputs, labels = inputs.to(device), labels.to(device)
-                outputs = model(inputs)
-                loss = criterion(outputs, labels)
-                val_loss += loss.item() * inputs.size(0)
-
-                _, preds = torch.max(outputs, 1)
-                y_true.extend(labels.cpu().numpy())
-                y_pred.extend(preds.cpu().numpy())
-
-        epoch_val_loss = val_loss / len(val_loader.dataset)
-        epoch_val_f1 = f1_score(y_true, y_pred, average='macro')
-
-        # GUARDAR MEJOR MODELO
-        if epoch_val_f1 > best_f1:
-            best_f1 = epoch_val_f1
-            best_model_wts = copy.deepcopy(model.state_dict())
-            torch.save(model.state_dict(), nombre_archivo)
-
-    model.load_state_dict(best_model_wts)
-    return model, historial
-\end{lstlisting}
-
-\subsection{Configuración de ResNet-18}
-
-\begin{lstlisting}[caption={Configuración de ResNet-18 para fine-tuning}]
-# Cargar modelo preentrenado
-model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
-
-# Congelar capas
-for param in model.parameters():
-    param.requires_grad = False
-
-# Descongelar layer4
-for param in model.layer4.parameters():
-    param.requires_grad = True
-
-# Nueva cabeza
-num_ftrs = model.fc.in_features
-model.fc = nn.Sequential(
-    nn.Dropout(0.5),
-    nn.Linear(num_ftrs, 6)  # 6 clases
-)
-
-# Optimizador con learning rates diferenciales
-optimizer = optim.AdamW([
-    {'params': model.layer4.parameters(), 'lr': 1e-4},
-    {'params': model.fc.parameters(), 'lr': 1e-3}
-], weight_decay=0.01)
-\end{lstlisting}
-
-\subsection{Código del Ensemble}
-
-\begin{lstlisting}[caption={Implementación del ensemble}]
-# Pesos del ensemble
-WEIGHTS = {'resnet': 0.20, 'densenet': 0.20, 'yolo': 0.60}
-
-for img_path in test_images:
-    # Predicciones PyTorch
-    img_tensor = transform(Image.open(img_path)).unsqueeze(0).to(device)
-
-    with torch.no_grad():
-        probs_resnet = F.softmax(model_resnet(img_tensor), dim=1)
-        probs_densenet = F.softmax(model_densenet(img_tensor), dim=1)
-
-    # Prediccion YOLO
-    result_yolo = model_yolo(img_path, verbose=False)[0]
-    probs_yolo = result_yolo.probs.data
-
-    # Fusion ponderada
-    probs_final = (
-        WEIGHTS['resnet'] * probs_resnet +
-        WEIGHTS['densenet'] * probs_densenet +
-        WEIGHTS['yolo'] * probs_yolo
-    )
-
-    prediction = probs_final.argmax()
-\end{lstlisting}
 
 \end{document}
