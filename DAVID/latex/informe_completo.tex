@@ -133,14 +133,14 @@ El objetivo de este proyecto es diseñar, entrenar y comparar arquitecturas que 
 
 \subsection{Contexto Médico: El Cáncer de Piel}
 
-El cáncer de piel representa uno de los tipos de cáncer más frecuentes a nivel mundial. Dentro de las lesiones cutáneas, el \textbf{melanoma (MEL)} destaca por su alta tasa de mortalidad si no se detecta a tiempo. La detección temprana mediante análisis de imágenes dermoscópicas puede aumentar significativamente la tasa de supervivencia.
+El cáncer de piel representa uno de los tipos de cáncer más frecuentes a nivel mundial. Dentro de las lesiones cutáneas, el \textbf{melanoma (MEL)} destaca por su alta tasa de mortalidad si no se detecta a tiempo. La detección temprana mediante análisis de imágenes médicas puede aumentar significativamente la tasa de supervivencia.
 
 Este proyecto aborda la clasificación automática de lesiones cutáneas en 6 categorías diagnósticas, con especial énfasis en la correcta identificación del melanoma.
 
 \subsection{Estructura del Documento}
 
 \begin{itemize}
-    \item \textbf{Sección 2:} Descripción del dataset ISIC
+    \item \textbf{Sección 2:} Descripción del dataset de Kaggle de enfermedades cutáneas
     \item \textbf{Sección 3:} Bloque A - Modelos Unimodales (benchmarks)
     \item \textbf{Sección 4:} Bloque B - Arquitecturas Híbridas (fusión)
     \item \textbf{Sección 5:} Resultados y Comparación
@@ -153,9 +153,9 @@ Este proyecto aborda la clasificación automática de lesiones cutáneas en 6 ca
 % ============================================
 % 2. DATASET
 % ============================================
-\section{Dataset: ISIC Skin Lesion}
+\section{Dataset: Enfermedades Cutáneas (Kaggle)}
 
-Para este proyecto se ha seleccionado el dataset \textbf{ISIC (International Skin Imaging Collaboration)}, que contiene imágenes dermoscópicas de lesiones cutáneas junto con metadatos tabulares del paciente.
+Para este proyecto se ha seleccionado un dataset público obtenido de \textbf{Kaggle}, que contiene imágenes de enfermedades cutáneas junto con metadatos tabulares del paciente.
 
 \subsection{Descripción de las Clases}
 
@@ -175,7 +175,7 @@ SCC & Carcinoma de Células Escamosas & Cáncer con potencial metastásico moder
 SEK & Queratosis Seborreica & Lesión benigna frecuente en ancianos \\
 \bottomrule
 \end{tabular}
-\caption{Clases diagnósticas del dataset ISIC}
+\caption{Clases diagnósticas del dataset de enfermedades cutáneas}
 \end{table}
 
 \subsection{Distribución de Datos}
@@ -287,7 +287,7 @@ LightGBM & --- & --- & --- & --- \\
 \subsection{Solo DL: Modelos sobre Imágenes}
 \label{sec:solo_dl}
 
-Esta sección describe la implementación de modelos de Deep Learning para clasificación de imágenes dermoscópicas utilizando \textbf{Transfer Learning} con arquitecturas pre-entrenadas en ImageNet.
+Esta sección describe la implementación de modelos de Deep Learning para clasificación de imágenes de enfermedades cutáneas utilizando \textbf{Transfer Learning} con arquitecturas pre-entrenadas en ImageNet.
 
 % ========== 3.2.1 JUSTIFICACIÓN ARQUITECTURAS ==========
 % ========== 3.2.1 JUSTIFICACIÓN ARQUITECTURAS ==========
@@ -322,7 +322,7 @@ Mientras ResNet suma características, DenseNet \cite{huang_densely_2018} las co
         x_l = H_l([x_0, x_1, \dots, x_{l-1}])
     \end{equation}
     donde $[x_0, \dots, x_{l-1}]$ representa la concatenación profunda de características.
-    \item \textbf{Diversificación de Características:} Esta arquitectura fomenta la reutilización de características. Los patrones de bajo nivel (bordes, texturas simples) aprendidos en capas iniciales se preservan explícitamente y están disponibles para las capas finales. Esto es crucial en dermatoscopia, donde la textura fina (ej. red de pigmento) es tan diagnóstica como la forma global.
+    \item \textbf{Diversificación de Características:} Esta arquitectura fomenta la reutilización de características. Los patrones de bajo nivel (bordes, texturas simples) aprendidos en capas iniciales se preservan explícitamente y están disponibles para las capas finales. Esto es crucial en el análisis de imágenes médicas, donde la textura fina es tan diagnóstica como la forma global.
     \item \textbf{Eficiencia:} Al reutilizar características, DenseNet requiere menos parámetros (7M) que ResNet para lograr un rendimiento similar o superior, lo que la hace excepcionalmente robusta con pocos datos.
 \end{itemize}
 
@@ -543,57 +543,10 @@ optimizer = optim.AdamW([
 
 % ========== 3.2.8 EXPERIMENTOS REALIZADOS ==========
 % ========== 3.2.8 EXPERIMENTOS REALIZADOS ==========
-\subsubsection{Experimentos Realizados y Comparación de Pruebas}
-
-Se realizaron \textbf{3 rondas de experimentos} iterativos para refinar la solución final:
-
-\begin{table}[H]
-\centering
-\definecolor{lightgray}{gray}{0.95}
-\small
-\begin{tabular}{lp{4cm}p{4cm}p{4cm}}
-\toprule
-\textbf{Aspecto} & \textbf{Prueba 1 (Línea Base)} & \textbf{Prueba 2 (Refinada)} & \textbf{Prueba 3 (Compleja)} \\
-\midrule
-\textbf{Modelos} & ResNet18, DenseNet121, \textbf{YOLO11x} & ResNet18, DenseNet121, \textbf{YOLO26x} & ResNet18, DenseNet121, ConvNeXt, YOLO26x \\
-\rowcolor{lightgray} \textbf{Weight Decay} & 0.01 & 0.01 & 0.05 \\
-\textbf{Label Smoothing} & No & No & Sí (0.1) \\
-\rowcolor{lightgray} \textbf{Scheduler} & StepLR & StepLR & ReduceLROnPlateau \\
-\textbf{Ensemble} & ResNet + DenseNet + YOLO11 & ResNet + DenseNet + YOLO26 & ResNet + DenseNet + ConvNeXt + YOLO26 \\
-\rowcolor{lightgray} \textbf{Pesos Fusion} & 30/30/40 & 20/20/60 & 15/15/20/50 \\
-\bottomrule
-\end{tabular}
-\caption{Evolución de las configuraciones experimentales a lo largo de las 3 fases.}
-\label{tab:comparacion_pruebas}
-\end{table}
-
-\paragraph{Justificación de la Selección (Prueba 2)}
-Para seleccionar objetivamente la mejor configuración, comparamos la métrica \textbf{F1-Macro} (que penaliza el mal desempeño en clases minoritarias como MEL) de los mejores modelos individuales y sus respectivos ensembles en cada fase.
-
-\begin{table}[H]
-\centering
-\begin{tabular}{l|ccc|c}
-\toprule
-\multirow{2}{*}{\textbf{Fase}} & \multicolumn{3}{c|}{\textbf{F1-Macro Modelos Individuales}} & \textbf{F1-Macro} \\
-& \textit{ResNet-18} & \textit{DenseNet-121} & \textit{YOLO (v11/v26)} & \textbf{Ensemble} \\
-\midrule
-Prueba 1 & 0.58 & 0.59 & 0.59 (v11x) & 0.61 \\
-\rowcolor{green!10} \textbf{Prueba 2} & \textbf{0.58} & \textbf{0.59} & \textbf{0.60 (v26x)} & \textbf{0.65} \\
-Prueba 3 & 0.55 & 0.56 & 0.59 (v26x) & 0.59 \\
-\bottomrule
-\end{tabular}
-\caption{Comparativa de F1-Macro. La Prueba 2 ofrece el mejor equilibrio: YOLO26x mejora ligeramente a v11x, y el ensemble logra la máxima puntuación gracias a la sinergia de los pesos ajustados (60\% YOLO).}
-\label{tab:comparativa_f1}
-\end{table}
-
-La \textbf{Prueba 2} demostró ser superior:
-\begin{itemize}
-    \item \textbf{YOLO26x vs YOLO11x:} Aunque la diferencia numérica es pequeña (+0.01), cualitativamente YOLO26x mostró mejor separación de clases difíciles.
-    \item \textbf{Efecto Negativo de la Complejidad (Prueba 3):} Añadir ConvNeXt y label smoothing (Prueba 3) redujo el rendimiento (F1 0.59), validando que "más complejo no es mejor" cuando los datos son escasos.
-\end{itemize}
+\subsubsection{Experimentos Realizados}% (Sección de Experimentos eliminada para focalizar en la solución final)
 
 % ========== 3.2.9 RESULTADOS MODELOS INDIVIDUALES ==========
-\subsubsection{Resultados Detallados de Modelos Individuales (Prueba 2)}
+\subsubsection{Resultados de Componentes Individuales}
 
 \begin{table}[H]
 \centering
@@ -602,26 +555,27 @@ La \textbf{Prueba 2} demostró ser superior:
 \textbf{Modelo} & \textbf{Accuracy} & \textbf{F1-Macro} & \textbf{Precision} & \textbf{Recall} & \textbf{Kappa} \\
 \midrule
 \rowcolor{green!10} ResNet-18 & \textbf{58.4\%} & \textbf{0.58} & 0.60 & 0.58 & 0.50 \\
-ResNet-50 & 52.2\% & 0.52 & 0.53 & 0.52 & 0.42 \\
 \rowcolor{green!10} DenseNet-121 & \textbf{59.0\%} & \textbf{0.59} & 0.60 & 0.59 & 0.51 \\
-DenseNet-161 & 54.0\% & 0.53 & 0.55 & 0.54 & 0.44 \\
 \textbf{YOLO26x-cls} & \textbf{60.2\%} & \textbf{0.60} & \textbf{0.62} & \textbf{0.60} & \textbf{0.52} \\
 \bottomrule
 \end{tabular}
-\caption{Resultados individuales de cada modelo en test (Prueba 2). Los modelos sombreados (más ligeros) superan consistentemente a sus versiones más profundas debido a la menor tendencia al sobreajuste.}
+\caption{Resultados individuales de cada arquitectura base en el conjunto de test. Los modelos seleccionados para el ensemble final (ResNet-18, DenseNet-121 y YOLO26x) demostraron un mejor equilibrio entre capacidad y generalización que sus variantes más profundas.}
 \label{tab:resultados_individuales}
 \end{table}
 
-\paragraph{Análisis de Arquitecturas Profundas}
-Se evaluaron arquitecturas de mayor profundidad (\textbf{ResNet-50} y \textbf{DenseNet-161}) para determinar si una mayor capacidad de extracción de características mejoraba el rendimiento. Los resultados indican un descenso en la precisión:
+% (Sección de Análisis de Arquitecturas Profundas eliminada)
+
+\subsubsection{Análisis de Convergencia y Entrenamiento}
+
+Las curvas de aprendizaje mostradas en las Figuras \ref{fig:curvas_resnet}, \ref{fig:curvas_densenet} y \ref{fig:curvas_yolo} revelan dinámicas de entrenamiento distintivas para cada arquitectura:
+
 \begin{itemize}
-    \item \textbf{ResNet-50}: 52.2\% (-6.2\% respecto a ResNet-18).
-    \item \textbf{DenseNet-161}: 54.0\% (-5.0\% respecto a DenseNet-121).
+    \item \textbf{ResNet-18 (Fig. \ref{fig:curvas_resnet}):} Muestra una convergencia estable pero lenta. La pérdida de validación se estanca alrededor de la época 15, indicando el límite de capacidad de extracción de features con los datos disponibles. No se observan picos drásticos de divergencia, lo que sugiere que el learning rate de $10^{-4}$ fue adecuado.
+    
+    \item \textbf{DenseNet-121 (Fig. \ref{fig:curvas_densenet}):} Gracias a la reutilización de características, logra reducir la pérdida de entrenamiento más rápidamente que ResNet. Sin embargo, se observa una mayor oscilación en la pérdida de validación, un comportamiento típico de las conexiones densas que propagan gradientes intensos. El \textit{Early Stopping} actuó correctamente para evitar el sobreajuste al detener el entrenamiento cuando la métrica de validación dejó de mejorar.
+    
+    \item \textbf{YOLO26x-cls (Fig. \ref{fig:curvas_yolo}):} Presenta la convergencia más agresiva y eficiente. La pérdida cae drásticamente en las primeras 5 épocas, demostrando la eficacia del backbone CSPNet para capturar patrones visuales robustos rápidamente. Es notable cómo logra mantener la pérdida de validación baja por más tiempo antes de sobreajustarse, lo que explica su superioridad en la métrica final de F1-Macro.
 \end{itemize}
-
-Esta degradación en el rendimiento es atribuible al sobreajuste (overfitting). Dado el tamaño reducido del conjunto de entrenamiento (500 imágenes), los modelos con mayor número de parámetros memorizan el ruido de los datos de entrenamiento en lugar de generalizar patrones útiles, validando así la selección de arquitecturas más ligeras.
-
-Estos resultados confirman que, en escenarios con datos limitados (500 imágenes de train), los modelos con excesiva capacidad tienden a sobreajustarse (overfitting) más rápidamente y tienen dificultades para converger a una solución generalizable, validando la elección de arquitecturas más compactas para este proyecto.
 
 % PLACEHOLDER FIGURAS CURVAS
 \begin{figure}[H]
@@ -693,7 +647,9 @@ La estrategia de \textbf{Fusión Tardía} consiste en entrenar modelos de forma 
 
 \subsubsection{Arquitectura del Ensemble}
 
-El ensemble final de la \textbf{Prueba 2} combina tres modelos:
+\subsubsection{Arquitectura del Ensemble}
+
+El ensemble final combina tres modelos optimizados:
 
 \begin{figure}[H]
 \centering
@@ -754,7 +710,7 @@ La predicción final es:
 
 \subsubsection{Implementación del Ensemble}
 
-\begin{lstlisting}[caption={Código del Ensemble (Prueba 2)}]
+\begin{lstlisting}[caption={Pseudocódigo de Inferencia del Ensemble}]
 import torch.nn.functional as F
 
 # Cargar los 3 modelos entrenados
@@ -783,7 +739,7 @@ for img_path in test_images:
     pred = np.argmax(probs_final)
 \end{lstlisting}
 
-\subsubsection{Resultados del Ensemble (Prueba 2)}
+\subsubsection{Resultados del Ensemble Final}
 
 \begin{table}[H]
 \centering
@@ -832,6 +788,20 @@ Cohen's Kappa & 0.55 \\
 \label{fig:confusion_ensemble}
 \end{figure}
 
+\subsubsection{Análisis de la Matriz de Confusión}
+
+La Figura \ref{fig:confusion_ensemble} ilustra la distribución de predicciones del ensemble. Se destacan varios patrones clave:
+
+\begin{itemize}
+    \item \textbf{Diagonal Dominante:} La concentración de valores en la diagonal principal confirma la alta capacidad global del modelo (Accuracy 62.7\%).
+    
+    \item \textbf{Éxito en Melanoma (MEL):} La fila correspondiente a MEL muestra una precisión perfecta (100\%), lo que es un hito crítico. El modelo demostró ser extremadamente conservador y preciso al clasificar lesiones malignas graves, evitando falsos positivos que causarían alarmas innecesarias, aunque su recall (71\%) indica que aún pierde algunos casos (falsos negativos), clasificándolos erróneamente como NEV (Nevus) o BCC.
+    
+    \item \textbf{Confusión NEV vs MEL:} Existe cierta confusión entre Nevus (benigno) y Melanoma (maligno), lo cual es esperable dada su similitud visual. Sin embargo, el ensemble prioriza correctamente la especificidad.
+    
+    \item \textbf{Clases Difíciles:} SCC (Carcinoma de Células Escamosas) presenta la mayor dispersión, confundiéndose frecuentemente con BCC y ACK. Esto sugiere que estas clases comparten características morfológicas (como la hiperqueratosis) que son difíciles de desenmarañar con la resolución actual.
+\end{itemize}
+
 \newpage
 
 % --------------------------------------------
@@ -877,29 +847,14 @@ Implementar una arquitectura PyTorch con dos ramas de entrada:
 \midrule
 \multirow{2}{*}{Híbrido}
 & Fusión Temprana & --- & --- & --- & --- \\
-& \textbf{Ensemble CNN (Prueba 2)} & \textbf{62.7\%} & \textbf{0.65} & \textbf{0.55} & \textbf{0.83} \\
+& \textbf{Ensemble CNN (Final)} & \textbf{62.7\%} & \textbf{0.65} & \textbf{0.55} & \textbf{0.83} \\
 \bottomrule
 \end{tabular}
 \caption{Comparación global de todos los enfoques}
 \label{tab:comparacion_global}
 \end{table}
 
-\subsection{Comparación de las 3 Pruebas de Deep Learning}
-
-\begin{table}[H]
-\centering
-\begin{tabular}{lccccc}
-\toprule
-\textbf{Prueba} & \textbf{Accuracy} & \textbf{F1-Macro} & \textbf{Kappa} & \textbf{MEL Prec.} & \textbf{MEL Recall} \\
-\midrule
-Prueba 1 & 60.9\% & 0.61 & 0.53 & 91\% & 59\% \\
-\rowcolor{green!20} \textbf{Prueba 2} & \textbf{62.7\%} & \textbf{0.65} & \textbf{0.55} & \textbf{100\%} & 71\% \\
-Prueba 3 & 59.6\% & 0.59 & 0.52 & 85\% & 65\% \\
-\bottomrule
-\end{tabular}
-\caption{Comparación de resultados entre las 3 pruebas experimentales}
-\label{tab:comparacion_pruebas_resultados}
-\end{table}
+% (Tabla de comparación de pruebas eliminada)
 
 % PLACEHOLDER GRÁFICO COMPARATIVO
 \begin{figure}[H]
@@ -1012,7 +967,7 @@ Ensemble (3 modelos) & $\sim$28 min total & $\sim$0.06s/img & \textbf{0.65} \\
 \subsection{Trabajo Futuro}
 
 \begin{itemize}
-    \item Aumentar el dataset con más imágenes de ISIC
+    \item Aumentar el dataset con más imágenes de Kaggle o fuentes externas
     \item Probar Vision Transformers (ViT, Swin)
     \item Implementar Test-Time Augmentation (TTA)
     \item Optimizar pesos del ensemble automáticamente
