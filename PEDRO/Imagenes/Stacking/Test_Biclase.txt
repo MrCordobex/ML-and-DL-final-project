@@ -1,0 +1,20 @@
+Tiempo entrenamiento: 21min 	GPU A100
+Tiempo inferencia : 2min
+
+============================================================
+STACKING TEST RESULTS (AdaBoost meta)
+============================================================
+Accuracy: 0.8873
+Kappa   : 0.7701
+F1-macro: 0.8850
+------------------------------------------------------------
+
+Classification report:
+              precision    recall  f1-score   support
+
+     Benigno     0.9012    0.9012    0.9012        81
+     Maligno     0.8689    0.8689    0.8689        61
+
+    accuracy                         0.8873       142
+   macro avg     0.8850    0.8850    0.8850       142
+weighted avg     0.8873    0.8873    0.8873       142

@@ -1,0 +1,20 @@
+Tiempo entrenamiento: 30s     CPU
+Tiempo inferencia: 90s
+Hiperparámetros: alpha=0.2
+Ensemble: 5 resnet
+============================================================
+GATED FUSION (TAB RF + IMG ENSEMBLE)
+============================================================
+Accuracy: 0.8873239436619719
+F1-macro: 0.8858750251155314
+Kappa   : 0.7719333467175266
+
+Classification report:
+              precision    recall  f1-score   support
+
+     Benigno     0.9221    0.8765    0.8987        81
+     Maligno     0.8462    0.9016    0.8730        61
+
+    accuracy                         0.8873       142
+   macro avg     0.8841    0.8891    0.8859       142
+weighted avg     0.8895    0.8873    0.8877       142
